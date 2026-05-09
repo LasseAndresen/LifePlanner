@@ -1,5 +1,5 @@
 import { Component, Input } from '@angular/core';
-import { TopicCard } from '../../../../core/models/planner.models';
+import { Card } from '../../../../core/models/planner.models';
 import { CommonModule } from '@angular/common';
 
 @Component({
@@ -7,10 +7,10 @@ import { CommonModule } from '@angular/common';
   standalone: true,
   imports: [CommonModule],
   template: `
-    <div class="topic-card glass-panel" [ngClass]="card.category.toLowerCase()">
+    <div class="topic-card glass-panel" [style.border-left-color]="card.category?.color ?? '#6366f1'">
       <div class="card-header">
         <h4>{{ card.title }}</h4>
-        <span class="category-badge">{{ card.category }}</span>
+        <span class="category-badge">{{ card.category?.name ?? 'Uncategorized' }}</span>
       </div>
       <p class="description">{{ card.description }}</p>
     </div>
@@ -21,6 +21,7 @@ import { CommonModule } from '@angular/common';
       margin-bottom: 0.75rem;
       cursor: grab;
       transition: transform 0.2s, box-shadow 0.2s;
+      border-left: 4px solid transparent;
     }
     .topic-card:active {
       cursor: grabbing;
@@ -51,13 +52,9 @@ import { CommonModule } from '@angular/common';
       font-size: 0.85rem;
       color: var(--text-muted);
     }
-    
-    /* Category borders */
-    .ideas { border-left: 4px solid var(--color-ideas); }
-    .chores { border-left: 4px solid var(--color-chores); }
-    .events { border-left: 4px solid var(--color-events); }
   `]
 })
 export class TopicCardComponent {
-  @Input({ required: true }) card!: TopicCard;
+  @Input({ required: true }) card!: Card;
 }
+

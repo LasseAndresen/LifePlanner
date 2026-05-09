@@ -1,6 +1,6 @@
 import { Component, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { TopicCard } from '../../../../core/models/planner.models';
+import { Card } from '../../../../core/models/planner.models';
 import { TopicCardComponent } from '../topic-card/topic-card.component';
 import { DragDropModule } from '@angular/cdk/drag-drop';
 
@@ -10,7 +10,7 @@ import { DragDropModule } from '@angular/cdk/drag-drop';
   imports: [CommonModule, TopicCardComponent, DragDropModule],
   template: `
     <div class="sidebar-container glass-panel">
-      <h2>Ideas & Tasks</h2>
+      <h2>Ideas &amp; Tasks</h2>
       <p class="subtitle">Drag cards onto your calendar</p>
       
       <div 
@@ -83,5 +83,5 @@ import { DragDropModule } from '@angular/cdk/drag-drop';
   `]
 })
 export class CardSidebarComponent {
-  @Input({ required: true }) cards: TopicCard[] = [];
+  @Input({ required: true }) cards: Card[] = [];
 }

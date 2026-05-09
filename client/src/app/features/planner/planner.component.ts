@@ -1,10 +1,12 @@
-import { Component, inject } from '@angular/core';
+import { Component, effect, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { CardSidebarComponent } from './components/card-sidebar/card-sidebar.component';
 import { CalendarGridComponent } from './components/calendar-grid/calendar-grid.component';
 import { CardService } from '../../core/services/card.service';
 import { CalendarService } from '../../core/services/calendar.service';
-import { TopicCard } from '../../core/models/planner.models';
+import { CategoryService } from '../../core/services/category.service';
+import { UserService } from '../../core/services/user.service';
+import { Card } from '../../core/models/planner.models';
 import { CdkDragDrop } from '@angular/cdk/drag-drop';
 
 @Component({
@@ -13,9 +15,9 @@ import { CdkDragDrop } from '@angular/cdk/drag-drop';
   imports: [CommonModule, CardSidebarComponent, CalendarGridComponent],
   template: `
     <div class="planner-layout">
-      <app-card-sidebar [cards]="cardService.cards()"></app-card-sidebar>
+      <app-card-sidebar [cards]="cardService.unscheduledCards()"></app-card-sidebar>
       <app-calendar-grid 
-        [events]="calendarService.events()"
+        [scheduledCards]="calendarService.scheduledCards()"
         (cardDropped)="onCardDropped($event)">
       </app-calendar-grid>
     </div>
@@ -31,26 +33,29 @@ import { CdkDragDrop } from '@angular/cdk/drag-drop';
   `]
 })
 export class PlannerComponent {
-  public cardService = inject(CardService);
-  public calendarService = inject(CalendarService);
+  public readonly cardService = inject(CardService);
+  public readonly calendarService = inject(CalendarService);
+  public readonly categoryService = inject(CategoryService);
+  private readonly userService = inject(UserService);
+
+  constructor() {
+    // When the user is bootstrapped, load their data
+    effect(() => {
+      const user = this.userService.currentUser();
+      if (user) {
+        this.cardService.loadCards(user.id);
+        this.categoryService.loadCategories(user.id);
+      }
+    });
+  }
 
   onCardDropped(event: CdkDragDrop<any>) {
     if (event.previousContainer !== event.container) {
-      // Card moved from sidebar to calendar
-      const droppedCard = event.previousContainer.data[event.previousIndex] as TopicCard;
-      
-      // 1. Remove from sidebar service
-      this.cardService.removeCard(droppedCard.id);
-      
-      // 2. Add to calendar service
-      this.calendarService.addEvent({
-        title: droppedCard.title,
-        description: droppedCard.description,
-        category: droppedCard.category,
-        startTime: new Date(), // Mock date for MVP
-        endTime: new Date(new Date().getTime() + 60 * 60 * 1000), // +1 hour
-        cardId: droppedCard.id
-      });
+      const droppedCard = event.previousContainer.data[event.previousIndex] as Card;
+      // Set scheduledDate to now — the calendar grid date selection will be enhanced in a future iteration
+      this.cardService.updateCard(droppedCard.id, {
+        scheduledDate: new Date().toISOString()
+      }).subscribe();
     }
   }
 }

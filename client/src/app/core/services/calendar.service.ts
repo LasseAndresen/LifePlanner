@@ -1,21 +1,17 @@
-import { Injectable, signal } from '@angular/core';
-import { CalendarEvent } from '../models/planner.models';
+import { Injectable, inject } from '@angular/core';
+import { CardService } from './card.service';
 
+/**
+ * CalendarService is a thin view-layer helper that surfaces the scheduled
+ * subset of cards. All state lives in CardService; this service just provides
+ * a stable API for calendar-aware components.
+ */
 @Injectable({
   providedIn: 'root'
 })
 export class CalendarService {
-  private eventsSignal = signal<CalendarEvent[]>([]);
-  readonly events = this.eventsSignal.asReadonly();
+  private readonly cardService = inject(CardService);
 
-  constructor() { }
-
-  addEvent(event: Omit<CalendarEvent, 'id'>) {
-    const newEvent = { ...event, id: crypto.randomUUID() };
-    this.eventsSignal.update(events => [...events, newEvent]);
-  }
-
-  removeEvent(id: string) {
-    this.eventsSignal.update(events => events.filter(e => e.id !== id));
-  }
+  /** Cards that have a scheduledDate — shown on the calendar grid */
+  readonly scheduledCards = this.cardService.scheduledCards;
 }

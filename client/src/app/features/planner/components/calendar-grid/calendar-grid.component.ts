@@ -1,6 +1,6 @@
 import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { CalendarEvent } from '../../../../core/models/planner.models';
+import { Card } from '../../../../core/models/planner.models';
 import { DragDropModule, CdkDragDrop } from '@angular/cdk/drag-drop';
 
 @Component({
@@ -19,14 +19,14 @@ import { DragDropModule, CdkDragDrop } from '@angular/cdk/drag-drop';
           class="drop-zone"
           cdkDropList
           id="calendarGridList"
-          [cdkDropListData]="events"
+          [cdkDropListData]="scheduledCards"
           [cdkDropListConnectedTo]="['sidebarList']"
           (cdkDropListDropped)="onDrop($event)">
           
-          @for (event of events; track event.id) {
-            <div class="event-card glass-panel" [ngClass]="event.category.toLowerCase()">
-              <h4>{{ event.title }}</h4>
-              <span class="time">Scheduled</span>
+          @for (card of scheduledCards; track card.id) {
+            <div class="event-card glass-panel" [style.border-left-color]="card.category?.color ?? '#6366f1'">
+              <h4>{{ card.title }}</h4>
+              <span class="time">{{ card.scheduledDate | date:'shortDate' }}</span>
             </div>
           } @empty {
             <div class="empty-timeline">
@@ -81,6 +81,7 @@ import { DragDropModule, CdkDragDrop } from '@angular/cdk/drag-drop';
       display: flex;
       justify-content: space-between;
       align-items: center;
+      border-left: 4px solid transparent;
     }
     .event-card h4 {
       margin: 0;
@@ -91,16 +92,14 @@ import { DragDropModule, CdkDragDrop } from '@angular/cdk/drag-drop';
       font-size: 0.85rem;
       color: var(--text-secondary);
     }
-    .ideas { border-left: 4px solid var(--color-ideas); }
-    .chores { border-left: 4px solid var(--color-chores); }
-    .events { border-left: 4px solid var(--color-events); }
   `]
 })
 export class CalendarGridComponent {
-  @Input({ required: true }) events: CalendarEvent[] = [];
+  @Input({ required: true }) scheduledCards: Card[] = [];
   @Output() cardDropped = new EventEmitter<CdkDragDrop<any>>();
 
   onDrop(event: CdkDragDrop<any>) {
     this.cardDropped.emit(event);
   }
 }
+
