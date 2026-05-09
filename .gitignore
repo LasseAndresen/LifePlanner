@@ -1,0 +1,38 @@
+# ==== Angular / Node ====
+node_modules/
+dist/
+out-tsc/
+bazel-out/
+.angular/
+npm-debug.log
+yarn-error.log
+pnpm-debug.log
+
+# ==== .NET ====
+bin/
+obj/
+.vs/
+*.user
+*.userprefs
+*.suo
+*.userosscache
+*.sln.docstates
+*.dbmdl
+*.jfm
+*.pfx
+*.publishsettings
+
+# ==== IDE / OS ====
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+
+# ==== Secrets ====
+.env
+appsettings.Development.json
+*.secret.json
