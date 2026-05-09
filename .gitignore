@@ -22,6 +22,11 @@ obj/
 *.pfx
 *.publishsettings
 
+# ==== SQLite ====
+*.db
+*.db-shm
+*.db-wal
+
 # ==== IDE / OS ====
 .vscode/*
 !.vscode/settings.json
