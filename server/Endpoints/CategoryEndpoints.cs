@@ -19,6 +19,14 @@ public static class CategoryEndpoints
 
         group.MapPost("/", async (Category category, LifePlannerDbContext db) =>
         {
+            if (string.IsNullOrWhiteSpace(category.Name) || category.UserId <= 0)
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    { "Category", new[] { "Name and a valid UserId are required." } }
+                });
+            }
+
             db.Categories.Add(category);
             await db.SaveChangesAsync();
             return Results.Created($"/api/categories/{category.Id}", category);
@@ -26,6 +34,14 @@ public static class CategoryEndpoints
 
         group.MapPut("/{id}", async (int id, Category updatedCategory, LifePlannerDbContext db) =>
         {
+            if (string.IsNullOrWhiteSpace(updatedCategory.Name))
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    { "Category", new[] { "Name is required." } }
+                });
+            }
+
             var category = await db.Categories.FindAsync(id);
             if (category is null) return Results.NotFound();
 

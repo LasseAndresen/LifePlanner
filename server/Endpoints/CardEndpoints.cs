@@ -19,6 +19,14 @@ public static class CardEndpoints
 
         group.MapPost("/", async (Card card, LifePlannerDbContext db) =>
         {
+            if (string.IsNullOrWhiteSpace(card.Title) || card.UserId <= 0 || card.CategoryId <= 0)
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    { "Card", new[] { "Title, UserId, and CategoryId are required." } }
+                });
+            }
+
             db.Cards.Add(card);
             await db.SaveChangesAsync();
             return Results.Created($"/api/cards/{card.Id}", card);
@@ -26,6 +34,14 @@ public static class CardEndpoints
 
         group.MapPut("/{id}", async (int id, Card updatedCard, LifePlannerDbContext db) =>
         {
+            if (string.IsNullOrWhiteSpace(updatedCard.Title) || updatedCard.CategoryId <= 0)
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    { "Card", new[] { "Title and CategoryId are required." } }
+                });
+            }
+
             var card = await db.Cards.FindAsync(id);
             if (card is null) return Results.NotFound();
 

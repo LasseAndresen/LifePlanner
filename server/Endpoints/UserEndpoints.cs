@@ -18,6 +18,14 @@ public static class UserEndpoints
 
         group.MapPost("/", async (User user, LifePlannerDbContext db) =>
         {
+            if (string.IsNullOrWhiteSpace(user.Name) || string.IsNullOrWhiteSpace(user.Email))
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    { "User", new[] { "Name and Email are required." } }
+                });
+            }
+
             db.Users.Add(user);
             await db.SaveChangesAsync();
             return Results.Created($"/api/users/{user.Id}", user);
