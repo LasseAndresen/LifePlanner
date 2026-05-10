@@ -20,7 +20,7 @@ import { CommonModule } from '@angular/common';
       padding: 1rem;
       margin-bottom: 0.75rem;
       cursor: grab;
-      transition: transform 0.2s, box-shadow 0.2s;
+      transition: box-shadow 0.2s;
       border-left: 4px solid transparent;
     }
     .topic-card:active {

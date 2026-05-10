@@ -1,0 +1,57 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "watch-server",
+      "command": "dotnet",
+      "type": "process",
+      "args": ["watch", "run"],
+      "options": {
+        "cwd": "${workspaceFolder}/server"
+      },
+      "isBackground": true,
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "start-client",
+      "command": "npm",
+      "type": "process",
+      "args": ["start"],
+      "options": {
+        "cwd": "${workspaceFolder}/client"
+      },
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "typescript",
+        "source": "ts",
+        "applyTo": "closedDocuments",
+        "fileLocation": "relative",
+        "pattern": "$tsc",
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": {
+            "regexp": "(.*?)"
+          },
+          "endsPattern": {
+            "regexp": "Compiled successfully"
+          }
+        }
+      }
+    },
+    {
+      "label": "reset-db",
+      "type": "process",
+      "command": "powershell",
+      "args": ["-File", "${workspaceFolder}/reset-db.ps1"],
+      "problemMatcher": []
+    },
+    {
+      "label": "run-all",
+      "dependsOn": ["watch-server", "start-client"],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    }
+  ]
+}

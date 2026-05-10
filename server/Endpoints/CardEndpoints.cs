@@ -13,7 +13,10 @@ public static class CardEndpoints
         // Get all cards for a specific user
         app.MapGet("/api/users/{userId}/cards", async (int userId, LifePlannerDbContext db) =>
         {
-            var cards = await db.Cards.Where(c => c.UserId == userId).ToListAsync();
+            var cards = await db.Cards
+                .Include(c => c.Category)
+                .Where(c => c.UserId == userId)
+                .ToListAsync();
             return Results.Ok(cards);
         }).WithTags("Cards");
 

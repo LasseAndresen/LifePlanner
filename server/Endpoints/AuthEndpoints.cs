@@ -36,6 +36,15 @@ public static class AuthEndpoints
                 };
                 db.Users.Add(user);
                 await db.SaveChangesAsync();
+
+                // Seed default categories so the card form is never empty on first login
+                db.Categories.AddRange(
+                    new Category { Name = "Ideas",    Color = "#3b82f6", UserId = user.Id },
+                    new Category { Name = "Chores",   Color = "#10b981", UserId = user.Id },
+                    new Category { Name = "Events",   Color = "#f59e0b", UserId = user.Id },
+                    new Category { Name = "Personal", Color = "#ec4899", UserId = user.Id }
+                );
+                await db.SaveChangesAsync();
             }
 
             return Results.Ok(user);

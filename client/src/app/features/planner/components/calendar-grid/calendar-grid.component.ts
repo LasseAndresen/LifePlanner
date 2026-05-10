@@ -20,11 +20,14 @@ import { DragDropModule, CdkDragDrop } from '@angular/cdk/drag-drop';
           cdkDropList
           id="calendarGridList"
           [cdkDropListData]="scheduledCards"
-          [cdkDropListConnectedTo]="['sidebarList']"
           (cdkDropListDropped)="onDrop($event)">
           
           @for (card of scheduledCards; track card.id) {
-            <div class="event-card glass-panel" [style.border-left-color]="card.category?.color ?? '#6366f1'">
+            <div 
+              class="event-card glass-panel" 
+              [style.border-left-color]="card.category?.color ?? '#6366f1'"
+              cdkDrag
+              [cdkDragData]="card">
               <h4>{{ card.title }}</h4>
               <span class="time">{{ card.scheduledDate | date:'shortDate' }}</span>
             </div>
@@ -61,6 +64,7 @@ import { DragDropModule, CdkDragDrop } from '@angular/cdk/drag-drop';
       overflow-y: auto;
     }
     .drop-zone {
+      width: 100%;
       min-height: 100%;
       display: flex;
       flex-direction: column;
@@ -71,10 +75,13 @@ import { DragDropModule, CdkDragDrop } from '@angular/cdk/drag-drop';
       align-items: center;
       justify-content: center;
       height: 100%;
+      width: 100%;
       border: 2px dashed var(--border-glass-strong);
       border-radius: var(--radius-md);
       color: var(--text-muted);
       font-size: 1.1rem;
+      text-align: center;
+      padding: 2rem;
     }
     .event-card {
       padding: 1rem;
@@ -82,6 +89,15 @@ import { DragDropModule, CdkDragDrop } from '@angular/cdk/drag-drop';
       justify-content: space-between;
       align-items: center;
       border-left: 4px solid transparent;
+      cursor: grab;
+      transition: box-shadow 0.2s;
+    }
+    .event-card:active {
+      cursor: grabbing;
+      transform: scale(0.98);
+    }
+    .event-card:hover {
+      box-shadow: 0 8px 32px rgba(255, 255, 255, 0.1);
     }
     .event-card h4 {
       margin: 0;
@@ -92,6 +108,8 @@ import { DragDropModule, CdkDragDrop } from '@angular/cdk/drag-drop';
       font-size: 0.85rem;
       color: var(--text-secondary);
     }
+
+    .cdk-drag-animating { transition: transform 250ms cubic-bezier(0, 0, 0.2, 1); }
   `]
 })
 export class CalendarGridComponent {
