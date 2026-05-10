@@ -13,7 +13,15 @@ public static class CategoryEndpoints
         // We also want an endpoint to get all categories for a user
         app.MapGet("/api/users/{userId}/categories", async (int userId, LifePlannerDbContext db) =>
         {
-            var categories = await db.Categories.Where(c => c.UserId == userId).ToListAsync();
+            var categories = await db.Categories
+                .Where(c => c.UserId == userId)
+                .Select(c => new CategoryDto
+                {
+                    Id = c.Id,
+                    Name = c.Name,
+                    Color = c.Color
+                })
+                .ToListAsync();
             return Results.Ok(categories);
         }).WithTags("Categories");
 
@@ -29,7 +37,15 @@ public static class CategoryEndpoints
 
             db.Categories.Add(category);
             await db.SaveChangesAsync();
-            return Results.Created($"/api/categories/{category.Id}", category);
+            
+            var result = new CategoryDto
+            {
+                Id = category.Id,
+                Name = category.Name,
+                Color = category.Color
+            };
+
+            return Results.Created($"/api/categories/{category.Id}", result);
         });
 
         group.MapPut("/{id}", async (int id, Category updatedCategory, LifePlannerDbContext db) =>

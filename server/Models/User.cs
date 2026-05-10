@@ -9,5 +9,6 @@ public class User
     
     // Navigation properties
     public ICollection<Category> Categories { get; set; } = new List<Category>();
+    
     public ICollection<Card> Cards { get; set; } = new List<Card>();
 }

@@ -16,6 +16,21 @@ public static class CardEndpoints
             var cards = await db.Cards
                 .Include(c => c.Category)
                 .Where(c => c.UserId == userId)
+                .Select(c => new CardDto
+                {
+                    Id = c.Id,
+                    Title = c.Title,
+                    Description = c.Description,
+                    ScheduledDate = c.ScheduledDate,
+                    CategoryId = c.CategoryId,
+                    UserId = c.UserId,
+                    Category = c.Category != null ? new CategoryDto
+                    {
+                        Id = c.Category.Id,
+                        Name = c.Category.Name,
+                        Color = c.Category.Color
+                    } : null
+                })
                 .ToListAsync();
             return Results.Ok(cards);
         }).WithTags("Cards");
@@ -32,7 +47,28 @@ public static class CardEndpoints
 
             db.Cards.Add(card);
             await db.SaveChangesAsync();
-            return Results.Created($"/api/cards/{card.Id}", card);
+
+            // Reload and project to DTO
+            var created = await db.Cards
+                .Include(c => c.Category)
+                .Select(c => new CardDto
+                {
+                    Id = c.Id,
+                    Title = c.Title,
+                    Description = c.Description,
+                    ScheduledDate = c.ScheduledDate,
+                    CategoryId = c.CategoryId,
+                    UserId = c.UserId,
+                    Category = c.Category != null ? new CategoryDto
+                    {
+                        Id = c.Category.Id,
+                        Name = c.Category.Name,
+                        Color = c.Category.Color
+                    } : null
+                })
+                .FirstAsync(c => c.Id == card.Id);
+
+            return Results.Created($"/api/cards/{card.Id}", created);
         });
 
         group.MapPut("/{id}", async (int id, Card updatedCard, LifePlannerDbContext db) =>
@@ -54,7 +90,28 @@ public static class CardEndpoints
             card.ScheduledDate = updatedCard.ScheduledDate;
             
             await db.SaveChangesAsync();
-            return Results.NoContent();
+
+            // Load and project to DTO
+            var result = await db.Cards
+                .Include(c => c.Category)
+                .Select(c => new CardDto
+                {
+                    Id = c.Id,
+                    Title = c.Title,
+                    Description = c.Description,
+                    ScheduledDate = c.ScheduledDate,
+                    CategoryId = c.CategoryId,
+                    UserId = c.UserId,
+                    Category = c.Category != null ? new CategoryDto
+                    {
+                        Id = c.Category.Id,
+                        Name = c.Category.Name,
+                        Color = c.Category.Color
+                    } : null
+                })
+                .FirstAsync(c => c.Id == id);
+
+            return Results.Ok(result);
         });
 
         group.MapDelete("/{id}", async (int id, LifePlannerDbContext db) =>
