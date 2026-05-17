@@ -14,26 +14,20 @@ import { DragDropModule, CdkDragDrop } from '@angular/cdk/drag-drop';
       <div class="sidebar-header">
         <div class="header-text">
           <h2>Ideas &amp; Tasks</h2>
-          <p class="subtitle">Drag cards onto your calendar</p>
+          <p class="subtitle">Drag tasks onto your calendar</p>
         </div>
         <button class="add-btn" (click)="addCardClicked.emit()" title="New card">
           <span class="plus">+</span>
         </button>
       </div>
 
-      <div
-        class="card-list"
-        cdkDropList
-        id="sidebarList"
-        [cdkDropListData]="cards"
-        (cdkDropListDropped)="onDrop($event)">
+      <div class="card-list">
 
         @for (card of cards; track card.id) {
           <app-topic-card
             [card]="card"
             (editClicked)="editCardClicked.emit(card)"
-            cdkDrag
-            [cdkDragData]="card">
+            (itemDropped)="itemDropped.emit($event)">
           </app-topic-card>
         } @empty {
           <div class="empty-state">
@@ -126,9 +120,5 @@ export class CardSidebarComponent {
   @Input({ required: true }) cards: Card[] = [];
   @Output() addCardClicked = new EventEmitter<void>();
   @Output() editCardClicked = new EventEmitter<Card>();
-  @Output() cardDropped = new EventEmitter<CdkDragDrop<any>>();
-
-  onDrop(event: CdkDragDrop<any>) {
-    this.cardDropped.emit(event);
-  }
+  @Output() itemDropped = new EventEmitter<CdkDragDrop<any>>();
 }

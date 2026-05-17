@@ -6,16 +6,15 @@ The MVP focuses on establishing the core "drag-and-drop" loop between cards and 
 *   **Google Login & Auth:** Mandatory Google authentication to access Calendar APIs.
 *   **Custom Calendar UI Grid:** A simple, custom-built calendar view (e.g., Day/Week) that supports drag-and-drop interactions.
 *   **Google Calendar Integration:** Syncing to read and update standard calendar events to our custom grid.
-*   **Topic Cards:** Cards containing a Title, Description, and Category.
-*   **Drag-and-Drop Scheduling:** The core interaction; moving a card onto the custom calendar grid to assign it a date/time.
-*   **Manual Entry:** Basic CRUD operations for cards and basic event data.
+*   **Topic Cards & Action Items:** Topic cards act as project or idea containers holding actionable tasks and checklists (`ListItem`s).
+*   **Granular Multi-Instance Scheduling:** The core interaction; dragging task items from topic cards onto the custom calendar grid creates independent scheduled instances. A single task item can be scheduled across multiple dates and completed independently on each scheduled day.
+*   **Manual Entry & Inline Editing:** Complete CRUD operations for cards, categories, and list items with intuitive inline text editing.
 
 ## Phase 2: Enhancements & Integrations (Should Have)
 Introducing AI and pulling in data from standard task managers.
 
 *   **AI Inspiration:** Generate lists of ideas for events or activities via simple prompts (e.g., "Give me 5 ideas for a cheap date night").
 *   **Microsoft TODO Integration:** Sync external tasks as cards in the app.
-*   **Card Checklists:** Adding sub-tasks and checklists to individual cards (ala Google Keep).
 *   **Routine Templates:** Save a collection of cards as a "Routine" that can be scheduled recursively or in bulk.
 
 ## Phase 3: Advanced Automation & Multiplayer (Could Have)

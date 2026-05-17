@@ -7,7 +7,7 @@ import { CardService } from '../../core/services/card.service';
 import { CalendarService } from '../../core/services/calendar.service';
 import { CategoryService } from '../../core/services/category.service';
 import { UserService } from '../../core/services/user.service';
-import { Card } from '../../core/models/planner.models';
+import { Card, ListItem, ScheduledInstance } from '../../core/models/planner.models';
 import { CdkDragDrop, DragDropModule } from '@angular/cdk/drag-drop';
 
 @Component({
@@ -20,15 +20,15 @@ import { CdkDragDrop, DragDropModule } from '@angular/cdk/drag-drop';
         [cards]="cardService.unscheduledCards()"
         (addCardClicked)="startCreateCard()"
         (editCardClicked)="onEditCard($event)"
-        (cardDropped)="onCardDropped($event)">
+        (itemDropped)="onItemDropped($event)">
       </app-card-sidebar>
 
       <app-calendar-grid
-        [scheduledCards]="calendarService.scheduledCards()"
+        [scheduledItems]="calendarService.scheduledItems()"
         [googleEvents]="calendarService.googleEvents()"
-        (cardDropped)="onCardDropped($event)"
-        (cardEdited)="onEditCard($event)"
-        (cardDeleted)="onCardDeleted($event)">
+        (itemDropped)="onItemDropped($event)"
+        (instanceToggled)="onInstanceToggled($event)"
+        (instanceUnscheduled)="onInstanceUnscheduled($event)">
       </app-calendar-grid>
     </div>
 
@@ -124,26 +124,39 @@ export class PlannerComponent {
     this.isFormOpen.set(false);
   }
 
-  onCardDropped(event: CdkDragDrop<any>): void {
+  onItemDropped(event: CdkDragDrop<any>): void {
     if (event.previousContainer !== event.container) {
-      const droppedCard = event.item.data as Card;
-      
+      const data = event.item.data as { instance?: ScheduledInstance; item: ListItem; card: Card };
+      if (!data?.item || !data?.card) return;
+
       if (event.container.id.startsWith('calendar-day-')) {
-        // Moving from sidebar to calendar -> Schedule it
-        const dateIso = event.container.id.replace('calendar-day-', '');
-        this.cardService.updateCard(droppedCard.id, {
-          scheduledDate: dateIso
-        }).subscribe();
-      } else if (event.container.id === 'sidebarList') {
-        // Moving from calendar to sidebar -> Unschedule it
-        this.cardService.updateCard(droppedCard.id, {
-          scheduledDate: undefined // Backend will handle null/missing as unscheduled
-        }).subscribe();
+        const targetDateIso = event.container.id.replace('calendar-day-', '');
+        if (data.instance) {
+          this.cardService.updateItemInstance(data.card.id, data.item.id, data.instance.id, { date: targetDateIso }).subscribe();
+        } else {
+          this.cardService.scheduleItemInstance(data.card.id, data.item.id, targetDateIso).subscribe();
+        }
+      } else if (event.container.id.startsWith('card-items-')) {
+        if (data.instance) {
+          this.cardService.deleteItemInstance(data.card.id, data.item.id, data.instance.id).subscribe();
+        } else {
+          const targetCardId = parseInt(event.container.id.replace('card-items-', ''), 10);
+          if (targetCardId !== data.card.id) {
+            this.cardService.updateListItem(data.card.id, {
+              ...data.item,
+              cardId: targetCardId
+            }).subscribe();
+          }
+        }
       }
     }
   }
 
-  onCardDeleted(card: Card): void {
-    this.cardService.deleteCard(card.id).subscribe();
+  onInstanceToggled({ cardId, itemId, instance }: { cardId: number; itemId: number; instance: ScheduledInstance }): void {
+    this.cardService.updateItemInstance(cardId, itemId, instance.id, { isCompleted: !instance.isCompleted }).subscribe();
+  }
+
+  onInstanceUnscheduled({ cardId, itemId, instanceId }: { cardId: number; itemId: number; instanceId: number }): void {
+    this.cardService.deleteItemInstance(cardId, itemId, instanceId).subscribe();
   }
 }

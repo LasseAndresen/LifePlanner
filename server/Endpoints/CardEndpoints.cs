@@ -89,11 +89,15 @@ public static class CardEndpoints
 
         group.MapPut("/{cardId}/items/{itemId}", async (int cardId, int itemId, ListItem updatedItem, LifePlannerDbContext db) =>
         {
-            var item = await db.ListItems.FirstOrDefaultAsync(i => i.Id == itemId && i.CardId == cardId);
+            var item = await db.ListItems.Include(i => i.ScheduledInstances).FirstOrDefaultAsync(i => i.Id == itemId && i.CardId == cardId);
             if (item is null) return Results.NotFound();
 
             item.Text = updatedItem.Text;
             item.IsCompleted = updatedItem.IsCompleted;
+            if (updatedItem.CardId > 0 && updatedItem.CardId != cardId)
+            {
+                item.CardId = updatedItem.CardId;
+            }
             await db.SaveChangesAsync();
 
             return Results.Ok(ToItemDto(item));
@@ -105,6 +109,47 @@ public static class CardEndpoints
             if (item is null) return Results.NotFound();
 
             db.ListItems.Remove(item);
+            await db.SaveChangesAsync();
+            return Results.NoContent();
+        }).WithTags("Cards");
+
+        // --- Scheduled Instance endpoints ---
+
+        group.MapPost("/{cardId}/items/{itemId}/instances", async (int cardId, int itemId, ScheduledInstance instanceReq, LifePlannerDbContext db) =>
+        {
+            var item = await db.ListItems.Include(i => i.ScheduledInstances).FirstOrDefaultAsync(i => i.Id == itemId && i.CardId == cardId);
+            if (item is null) return Results.NotFound();
+
+            var newInstance = new ScheduledInstance
+            {
+                Date = instanceReq.Date,
+                IsCompleted = instanceReq.IsCompleted,
+                ListItemId = itemId
+            };
+            db.ScheduledInstances.Add(newInstance);
+            await db.SaveChangesAsync();
+
+            return Results.Created($"/api/cards/{cardId}/items/{itemId}/instances/{newInstance.Id}", ToInstanceDto(newInstance));
+        }).WithTags("Cards");
+
+        group.MapPut("/{cardId}/items/{itemId}/instances/{instanceId}", async (int cardId, int itemId, int instanceId, ScheduledInstance updatedInstance, LifePlannerDbContext db) =>
+        {
+            var inst = await db.ScheduledInstances.FirstOrDefaultAsync(s => s.Id == instanceId && s.ListItemId == itemId);
+            if (inst is null) return Results.NotFound();
+
+            inst.Date = updatedInstance.Date;
+            inst.IsCompleted = updatedInstance.IsCompleted;
+            await db.SaveChangesAsync();
+
+            return Results.Ok(ToInstanceDto(inst));
+        }).WithTags("Cards");
+
+        group.MapDelete("/{cardId}/items/{itemId}/instances/{instanceId}", async (int cardId, int itemId, int instanceId, LifePlannerDbContext db) =>
+        {
+            var inst = await db.ScheduledInstances.FirstOrDefaultAsync(s => s.Id == instanceId && s.ListItemId == itemId);
+            if (inst is null) return Results.NotFound();
+
+            db.ScheduledInstances.Remove(inst);
             await db.SaveChangesAsync();
             return Results.NoContent();
         }).WithTags("Cards");
@@ -133,6 +178,15 @@ public static class CardEndpoints
         Id = i.Id,
         Text = i.Text,
         IsCompleted = i.IsCompleted,
-        CardId = i.CardId
+        CardId = i.CardId,
+        ScheduledInstances = i.ScheduledInstances?.Select(ToInstanceDto).ToList() ?? new()
+    };
+
+    private static ScheduledInstanceDto ToInstanceDto(ScheduledInstance inst) => new()
+    {
+        Id = inst.Id,
+        Date = inst.Date,
+        IsCompleted = inst.IsCompleted,
+        ListItemId = inst.ListItemId
     };
 }

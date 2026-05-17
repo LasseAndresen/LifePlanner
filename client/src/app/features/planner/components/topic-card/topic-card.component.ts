@@ -1,7 +1,7 @@
 import { Component, Input, Output, EventEmitter, inject, ViewChild, ViewChildren, QueryList, ElementRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { DragDropModule } from '@angular/cdk/drag-drop';
+import { DragDropModule, CdkDragDrop } from '@angular/cdk/drag-drop';
 import { Card, ListItem } from '../../../../core/models/planner.models';
 import { CardService } from '../../../../core/services/card.service';
 
@@ -12,8 +12,7 @@ import { CardService } from '../../../../core/services/card.service';
   template: `
     <div class="topic-card glass-panel" [style.border-left-color]="card.category?.color ?? '#6366f1'">
 
-      <!-- Drag handle: only this row initiates dragging -->
-      <div class="card-header" cdkDragHandle>
+      <div class="card-header">
         <div class="header-titles">
           <h4 [title]="card.title">{{ card.title }}</h4>
           <span class="category-badge" [title]="card.category?.name ?? 'Uncategorized'">
@@ -45,47 +44,57 @@ import { CardService } from '../../../../core/services/card.service';
       <!-- List items — always visible -->
       <div class="checklist" (mousedown)="$event.stopPropagation()" (click)="$event.stopPropagation()">
 
-        @if (card.listItems.length > 0) {
-          @if (card.isChecklist) {
-            <div class="progress-bar-wrap">
-              <div class="progress-bar" [style.width.%]="completionPercent"></div>
-            </div>
-            <span class="progress-label">{{ completedCount }}/{{ card.listItems.length }}</span>
-          }
-
-          <ul class="item-list">
-            @for (item of card.listItems; track item.id) {
-              <li class="item" [class.completed]="item.isCompleted && card.isChecklist">
-                @if (card.isChecklist) {
-                  <button
-                    class="check-btn"
-                    [class.checked]="item.isCompleted"
-                    (click)="toggleItem(item)"
-                    [attr.aria-label]="item.isCompleted ? 'Uncheck' : 'Check'">
-                    @if (item.isCompleted) { ✓ }
-                  </button>
-                } @else {
-                  <span class="bullet">•</span>
-                }
-                @if (editingItemId === item.id) {
-                  <div class="edit-item-row">
-                    <input
-                      #editItemInput
-                      class="edit-item-input"
-                      [(ngModel)]="editingItemText"
-                      (keydown.enter)="confirmEditItem(item)"
-                      (keydown.escape)="cancelEditItem()"
-                      (blur)="confirmEditItem(item)"
-                      autofocus />
-                  </div>
-                } @else {
-                  <span class="item-text" (click)="startEditItem(item)" title="Click to edit">{{ item.text }}</span>
-                  <button class="delete-item-btn" (click)="deleteItem(item)" title="Remove item">✕</button>
-                }
-              </li>
-            }
-          </ul>
+        @if (card.isChecklist && card.listItems.length > 0) {
+          <div class="progress-bar-wrap">
+            <div class="progress-bar" [style.width.%]="completionPercent"></div>
+          </div>
+          <span class="progress-label">{{ completedCount }}/{{ card.listItems.length }}</span>
         }
+
+        <ul
+          class="item-list"
+          cdkDropList
+          [id]="'card-items-' + card.id"
+          [cdkDropListData]="card.listItems"
+          (cdkDropListDropped)="itemDropped.emit($event)">
+          @for (item of card.listItems; track item.id) {
+            <li
+              class="item"
+              cdkDrag
+              [cdkDragData]="{ item: item, card: card }"
+              [class.completed]="item.isCompleted && card.isChecklist">
+              @if (card.isChecklist) {
+                <button
+                  class="check-btn"
+                  [class.checked]="item.isCompleted"
+                  (click)="toggleItem(item)"
+                  [attr.aria-label]="item.isCompleted ? 'Uncheck' : 'Check'">
+                  @if (item.isCompleted) { ✓ }
+                </button>
+              } @else {
+                <span class="bullet">•</span>
+              }
+              @if (editingItemId === item.id) {
+                <div class="edit-item-row">
+                  <input
+                    #editItemInput
+                    class="edit-item-input"
+                    [(ngModel)]="editingItemText"
+                    (keydown.enter)="confirmEditItem(item)"
+                    (keydown.escape)="cancelEditItem()"
+                    (blur)="confirmEditItem(item)"
+                    autofocus />
+                </div>
+              } @else {
+                <span class="item-text" (click)="startEditItem(item)" title="Click to edit">{{ item.text }}</span>
+                <button class="delete-item-btn" (click)="deleteItem(item)" title="Remove item">✕</button>
+              }
+            </li>
+          }
+          @if (card.listItems.length === 0) {
+            <li class="empty-item-dropzone">Drop tasks here</li>
+          }
+        </ul>
 
         @if (addingItem) {
           <div class="add-item-row">
@@ -234,12 +243,28 @@ import { CardService } from '../../../../core/services/card.service';
     .item {
       display: flex;
       align-items: center;
-      gap: 0.45rem;
-      padding: 0.18rem 0.1rem;
+      gap: 0.5rem;
+      padding: 0.35rem 0.5rem;
       border-radius: var(--radius-sm);
       transition: background 0.15s;
+      cursor: grab;
     }
-    .item:hover { background: rgba(255,255,255,0.04); }
+    .item:active {
+      cursor: grabbing;
+    }
+    .item:hover {
+      background: rgba(255, 255, 255, 0.04);
+    }
+    .empty-item-dropzone {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      opacity: 0.5;
+      padding: 0.75rem 0;
+      text-align: center;
+      border: 1px dashed rgba(255,255,255,0.1);
+      border-radius: var(--radius-sm);
+      margin: 0.25rem 0;
+    }
     .item:hover .delete-item-btn { opacity: 1; }
 
     .check-btn {
@@ -386,6 +411,7 @@ import { CardService } from '../../../../core/services/card.service';
 export class TopicCardComponent {
   @Input({ required: true }) card!: Card;
   @Output() editClicked = new EventEmitter<void>();
+  @Output() itemDropped = new EventEmitter<CdkDragDrop<any>>();
   @ViewChild('newItemInput') newItemInput?: ElementRef<HTMLInputElement>;
   @ViewChildren('editItemInput') editItemInputs?: QueryList<ElementRef<HTMLInputElement>>;
 

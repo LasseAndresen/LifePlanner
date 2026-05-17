@@ -16,8 +16,8 @@ export class CalendarService {
   private readonly cardService = inject(CardService);
   private readonly http = inject(HttpClient);
 
-  /** Cards that have a scheduledDate — shown on the calendar grid */
-  readonly scheduledCards = this.cardService.scheduledCards;
+  /** List items that have a scheduledDate — shown on the calendar grid */
+  readonly scheduledItems = this.cardService.scheduledItems;
 
   /** Google Calendar Events */
   readonly googleEvents = signal<GoogleCalendarEvent[]>([]);

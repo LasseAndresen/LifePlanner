@@ -11,11 +11,19 @@ export interface Category {
   userId: number;
 }
 
+export interface ScheduledInstance {
+  id: number;
+  date: string;
+  isCompleted: boolean;
+  listItemId: number;
+}
+
 export interface ListItem {
   id: number;
   text: string;
   isCompleted: boolean;
   cardId: number;
+  scheduledInstances: ScheduledInstance[];
 }
 
 export interface Card {

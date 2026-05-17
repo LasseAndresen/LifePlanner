@@ -1,7 +1,7 @@
 import { Injectable, inject, signal, computed } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, tap, catchError, throwError } from 'rxjs';
-import { Card, ListItem } from '../models/planner.models';
+import { Card, ListItem, ScheduledInstance } from '../models/planner.models';
 import { environment } from '../../../environments/environment';
 import { NotificationService } from './notification.service';
 
@@ -15,15 +15,23 @@ export class CardService {
 
   readonly cards = this.cardsSignal.asReadonly();
 
-  /** Cards that have not yet been placed on the calendar */
-  readonly unscheduledCards = computed(() =>
-    this.cardsSignal().filter(c => !c.scheduledDate)
-  );
+  /** All topic cards displayed in the sidebar */
+  readonly unscheduledCards = computed(() => this.cardsSignal());
 
-  /** Cards that have been scheduled (dropped onto the calendar) */
-  readonly scheduledCards = computed(() =>
-    this.cardsSignal().filter(c => !!c.scheduledDate)
-  );
+  /** Scheduled instances shown on the calendar grid */
+  readonly scheduledItems = computed(() => {
+    const result: { instance: ScheduledInstance; item: ListItem; card: Card }[] = [];
+    for (const card of this.cardsSignal()) {
+      for (const item of card.listItems) {
+        if (item.scheduledInstances) {
+          for (const instance of item.scheduledInstances) {
+            result.push({ instance, item, card });
+          }
+        }
+      }
+    }
+    return result;
+  });
 
   loadCards(userId: number): void {
     this.http
@@ -87,7 +95,7 @@ export class CardService {
 
   addListItem(cardId: number, text: string): Observable<ListItem> {
     return this.http
-      .post<ListItem>(`${environment.apiBaseUrl}/api/cards/${cardId}/items`, { text, isCompleted: false, cardId })
+      .post<ListItem>(`${environment.apiBaseUrl}/api/cards/${cardId}/items`, { text, isCompleted: false, cardId, scheduledInstances: [] })
       .pipe(
         tap(item => this.updateCardItems(cardId, items => [...items, item])),
         catchError(err => {
@@ -101,9 +109,25 @@ export class CardService {
     return this.http
       .put<ListItem>(`${environment.apiBaseUrl}/api/cards/${cardId}/items/${item.id}`, item)
       .pipe(
-        tap(updated => this.updateCardItems(cardId, items =>
-          items.map(i => i.id === updated.id ? updated : i)
-        )),
+        tap(updated => {
+          this.cardsSignal.update(cards => {
+            if (cardId !== updated.cardId) {
+              return cards.map(c => {
+                if (c.id === cardId) {
+                  return { ...c, listItems: c.listItems.filter(i => i.id !== updated.id) };
+                }
+                if (c.id === updated.cardId) {
+                  return { ...c, listItems: [...c.listItems, updated] };
+                }
+                return c;
+              });
+            } else {
+              return cards.map(c =>
+                c.id === cardId ? { ...c, listItems: c.listItems.map(i => i.id === updated.id ? updated : i) } : c
+              );
+            }
+          });
+        }),
         catchError(err => {
           this.notifications.error('Could not update item.');
           return throwError(() => err);
@@ -118,6 +142,83 @@ export class CardService {
         tap(() => this.updateCardItems(cardId, items => items.filter(i => i.id !== itemId))),
         catchError(err => {
           this.notifications.error('Could not delete item.');
+          return throwError(() => err);
+        })
+      );
+  }
+
+  // --- Scheduled Instance methods ---
+
+  scheduleItemInstance(cardId: number, itemId: number, dateIso: string): Observable<ScheduledInstance> {
+    return this.http
+      .post<ScheduledInstance>(`${environment.apiBaseUrl}/api/cards/${cardId}/items/${itemId}/instances`, {
+        date: dateIso,
+        isCompleted: false,
+        listItemId: itemId
+      })
+      .pipe(
+        tap(created => {
+          this.cardsSignal.update(cards => cards.map(c => c.id === cardId ? {
+            ...c,
+            listItems: c.listItems.map(i => i.id === itemId ? {
+              ...i,
+              scheduledInstances: [...(i.scheduledInstances || []), created]
+            } : i)
+          } : c));
+        }),
+        catchError(err => {
+          this.notifications.error('Could not schedule item.');
+          return throwError(() => err);
+        })
+      );
+  }
+
+  updateItemInstance(cardId: number, itemId: number, instanceId: number, updates: Partial<ScheduledInstance>): Observable<ScheduledInstance> {
+    let currentInst: ScheduledInstance | undefined;
+    const card = this.cardsSignal().find(c => c.id === cardId);
+    if (card) {
+      const item = card.listItems.find(i => i.id === itemId);
+      if (item && item.scheduledInstances) {
+        currentInst = item.scheduledInstances.find(s => s.id === instanceId);
+      }
+    }
+    if (!currentInst) throw new Error('Scheduled instance not found');
+
+    const payload = { ...currentInst, ...updates };
+    return this.http
+      .put<ScheduledInstance>(`${environment.apiBaseUrl}/api/cards/${cardId}/items/${itemId}/instances/${instanceId}`, payload)
+      .pipe(
+        tap(updated => {
+          this.cardsSignal.update(cards => cards.map(c => c.id === cardId ? {
+            ...c,
+            listItems: c.listItems.map(i => i.id === itemId ? {
+              ...i,
+              scheduledInstances: (i.scheduledInstances || []).map(s => s.id === instanceId ? updated : s)
+            } : i)
+          } : c));
+        }),
+        catchError(err => {
+          this.notifications.error('Could not update scheduled item.');
+          return throwError(() => err);
+        })
+      );
+  }
+
+  deleteItemInstance(cardId: number, itemId: number, instanceId: number): Observable<void> {
+    return this.http
+      .delete<void>(`${environment.apiBaseUrl}/api/cards/${cardId}/items/${itemId}/instances/${instanceId}`)
+      .pipe(
+        tap(() => {
+          this.cardsSignal.update(cards => cards.map(c => c.id === cardId ? {
+            ...c,
+            listItems: c.listItems.map(i => i.id === itemId ? {
+              ...i,
+              scheduledInstances: (i.scheduledInstances || []).filter(s => s.id !== instanceId)
+            } : i)
+          } : c));
+        }),
+        catchError(err => {
+          this.notifications.error('Could not unschedule item.');
           return throwError(() => err);
         })
       );

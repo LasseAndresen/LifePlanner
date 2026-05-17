@@ -15,6 +15,7 @@ public class CardRepository : Repository<Card>, ICardRepository
         return await _dbSet
             .Include(c => c.Category)
             .Include(c => c.ListItems)
+                .ThenInclude(i => i.ScheduledInstances)
             .Where(c => c.UserId == userId)
             .ToListAsync();
     }
@@ -24,6 +25,7 @@ public class CardRepository : Repository<Card>, ICardRepository
         return await _dbSet
             .Include(c => c.Category)
             .Include(c => c.ListItems)
+                .ThenInclude(i => i.ScheduledInstances)
             .FirstOrDefaultAsync(c => c.Id == id);
     }
 }

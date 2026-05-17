@@ -1,13 +1,13 @@
 import { Component, EventEmitter, Input, Output, OnChanges, SimpleChanges } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Card, GoogleCalendarEvent } from '../../../../core/models/planner.models';
+import { Card, ListItem, ScheduledInstance, GoogleCalendarEvent } from '../../../../core/models/planner.models';
 import { DragDropModule, CdkDragDrop } from '@angular/cdk/drag-drop';
 
 interface DayColumn {
   date: Date;
   dateIso: string;
   label: string;
-  cards: Card[];
+  items: { instance: ScheduledInstance; item: ListItem; card: Card }[];
   googleEvents: GoogleCalendarEvent[];
 }
 
@@ -33,7 +33,7 @@ interface DayColumn {
               class="drop-zone"
               cdkDropList
               [id]="'calendar-day-' + day.dateIso"
-              [cdkDropListData]="day.cards"
+              [cdkDropListData]="day.items"
               (cdkDropListDropped)="onDrop($event)">
               
               <!-- Google Calendar Events (Read Only) -->
@@ -51,28 +51,29 @@ interface DayColumn {
                 </div>
               }
 
-              <!-- LifePlanner Cards -->
-              @for (card of day.cards; track card.id) {
+              <!-- LifePlanner Items -->
+              @for (entry of day.items; track entry.instance.id) {
                 <div 
-                  class="event-card glass-panel" 
-                  [style.border-left-color]="card.category?.color ?? '#6366f1'"
+                  class="event-card glass-panel item-event" 
+                  [style.border-left-color]="entry.card.category?.color ?? '#6366f1'"
                   cdkDrag
-                  [cdkDragData]="card">
+                  [cdkDragData]="entry">
                   <div class="card-header">
-                    <h4>{{ card.title }}</h4>
+                    <button
+                      class="check-btn"
+                      [class.checked]="entry.instance.isCompleted"
+                      (click)="$event.stopPropagation(); onToggleInstance(entry.card.id, entry.item.id, entry.instance)"
+                      [attr.aria-label]="entry.instance.isCompleted ? 'Uncheck' : 'Check'">
+                      @if (entry.instance.isCompleted) { ✓ }
+                    </button>
+                    <h4 [class.completed]="entry.instance.isCompleted" [title]="entry.item.text">{{ entry.item.text }}</h4>
                     <div class="card-actions">
-                      <button
-                        class="edit-btn"
-                        (click)="$event.stopPropagation(); onEditCard(card)"
-                        title="Edit card"
-                        aria-label="Edit card">
-                        ✎
-                      </button>
+                      <span class="parent-card-badge" [title]="entry.card.title">{{ entry.card.title }}</span>
                       <button
                         class="delete-btn"
-                        (click)="$event.stopPropagation(); onDeleteCard(card)"
-                        title="Delete card"
-                        aria-label="Delete card">
+                        (click)="$event.stopPropagation(); onUnscheduleInstance(entry.card.id, entry.item.id, entry.instance.id)"
+                        title="Unschedule item"
+                        aria-label="Unschedule item">
                         ✕
                       </button>
                     </div>
@@ -80,7 +81,7 @@ interface DayColumn {
                 </div>
               }
               
-              @if (day.cards.length === 0 && day.googleEvents.length === 0) {
+              @if (day.items.length === 0 && day.googleEvents.length === 0) {
                 <div class="empty-timeline">
                   <p>Clear</p>
                 </div>
@@ -222,6 +223,25 @@ interface DayColumn {
       align-items: flex-start;
       gap: 0.5rem;
     }
+    .check-btn {
+      width: 16px;
+      height: 16px;
+      border-radius: 3px;
+      border: 1.5px solid rgba(255,255,255,0.2);
+      background: transparent;
+      color: #10b981;
+      font-size: 0.6rem;
+      cursor: pointer;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-top: 2px;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .check-btn.checked { background: rgba(16,185,129,0.18); border-color: #10b981; }
+    .check-btn:hover { border-color: rgba(255,255,255,0.4); }
+
     .event-card h4 {
       margin: 0;
       font-size: 0.95rem;
@@ -229,13 +249,29 @@ interface DayColumn {
       flex: 1;
       overflow: hidden;
       text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .event-card h4.completed {
+      color: var(--text-muted);
+      text-decoration: line-through;
     }
     .card-actions {
       display: flex;
-      gap: 0.25rem;
+      gap: 0.35rem;
       align-items: center;
     }
-    .edit-btn, .delete-btn {
+    .parent-card-badge {
+      font-size: 0.68rem;
+      color: var(--text-secondary);
+      background: rgba(255,255,255,0.08);
+      padding: 0.1rem 0.35rem;
+      border-radius: var(--radius-sm);
+      max-width: 90px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .delete-btn {
       opacity: 0;
       background: none;
       border: none;
@@ -248,13 +284,8 @@ interface DayColumn {
       line-height: 1;
       flex-shrink: 0;
     }
-    .event-card:hover .edit-btn,
     .event-card:hover .delete-btn {
       opacity: 1;
-    }
-    .edit-btn:hover {
-      color: #60a5fa;
-      background: rgba(59, 130, 246, 0.15);
     }
     .delete-btn:hover {
       color: #ef4444;
@@ -281,11 +312,11 @@ interface DayColumn {
   `]
 })
 export class CalendarGridComponent implements OnChanges {
-  @Input({ required: true }) scheduledCards: Card[] = [];
+  @Input({ required: true }) scheduledItems: { instance: ScheduledInstance; item: ListItem; card: Card }[] = [];
   @Input() googleEvents: GoogleCalendarEvent[] = [];
-  @Output() cardDropped = new EventEmitter<CdkDragDrop<any>>();
-  @Output() cardEdited = new EventEmitter<Card>();
-  @Output() cardDeleted = new EventEmitter<Card>();
+  @Output() itemDropped = new EventEmitter<CdkDragDrop<any>>();
+  @Output() instanceToggled = new EventEmitter<{ cardId: number; itemId: number; instance: ScheduledInstance }>();
+  @Output() instanceUnscheduled = new EventEmitter<{ cardId: number; itemId: number; instanceId: number }>();
 
   days: DayColumn[] = [];
 
@@ -294,7 +325,7 @@ export class CalendarGridComponent implements OnChanges {
   }
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (changes['scheduledCards'] || changes['googleEvents']) {
+    if (changes['scheduledItems'] || changes['googleEvents']) {
       this.distributeItems();
     }
   }
@@ -303,7 +334,6 @@ export class CalendarGridComponent implements OnChanges {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
-    // Find the most recent Monday
     const dayOfWeek = today.getDay();
     const diffToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
     const startOfWeek = new Date(today);
@@ -316,20 +346,18 @@ export class CalendarGridComponent implements OnChanges {
         date,
         dateIso: date.toISOString(),
         label: date.toDateString(),
-        cards: [],
+        items: [],
         googleEvents: []
       };
     });
   }
 
   private distributeItems() {
-    // Reset cards and events
     this.days.forEach(day => {
-      day.cards = [];
+      day.items = [];
       day.googleEvents = [];
     });
 
-    // Helper to find the matching day column
     const findDayColumn = (dateString: string | undefined): DayColumn | undefined => {
       if (!dateString) return undefined;
       const date = new Date(dateString);
@@ -338,13 +366,11 @@ export class CalendarGridComponent implements OnChanges {
       return this.days.find(d => d.date.getTime() === time);
     };
 
-    // Distribute LifePlanner cards
-    this.scheduledCards.forEach(card => {
-      const col = findDayColumn(card.scheduledDate);
-      if (col) col.cards.push(card);
+    this.scheduledItems.forEach(entry => {
+      const col = findDayColumn(entry.instance.date);
+      if (col) col.items.push(entry);
     });
 
-    // Distribute Google Calendar events
     this.googleEvents.forEach(event => {
       const startStr = event.start?.dateTime || event.start?.date;
       const col = findDayColumn(startStr);
@@ -353,17 +379,15 @@ export class CalendarGridComponent implements OnChanges {
   }
 
   onDrop(event: CdkDragDrop<any>) {
-    this.cardDropped.emit(event);
+    this.itemDropped.emit(event);
   }
 
-  onEditCard(card: Card) {
-    this.cardEdited.emit(card);
+  onToggleInstance(cardId: number, itemId: number, instance: ScheduledInstance) {
+    this.instanceToggled.emit({ cardId, itemId, instance });
   }
 
-  onDeleteCard(card: Card) {
-    if (confirm(`Are you sure you want to delete "${card.title}"?`)) {
-      this.cardDeleted.emit(card);
-    }
+  onUnscheduleInstance(cardId: number, itemId: number, instanceId: number) {
+    this.instanceUnscheduled.emit({ cardId, itemId, instanceId });
   }
 }
 
