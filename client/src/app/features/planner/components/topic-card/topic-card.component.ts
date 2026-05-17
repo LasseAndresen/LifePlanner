@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, inject, ViewChild, ElementRef } from '@angular/core';
+import { Component, Input, Output, EventEmitter, inject, ViewChild, ViewChildren, QueryList, ElementRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DragDropModule } from '@angular/cdk/drag-drop';
@@ -67,8 +67,21 @@ import { CardService } from '../../../../core/services/card.service';
                 } @else {
                   <span class="bullet">•</span>
                 }
-                <span class="item-text">{{ item.text }}</span>
-                <button class="delete-item-btn" (click)="deleteItem(item)" title="Remove item">✕</button>
+                @if (editingItemId === item.id) {
+                  <div class="edit-item-row">
+                    <input
+                      #editItemInput
+                      class="edit-item-input"
+                      [(ngModel)]="editingItemText"
+                      (keydown.enter)="confirmEditItem(item)"
+                      (keydown.escape)="cancelEditItem()"
+                      (blur)="confirmEditItem(item)"
+                      autofocus />
+                  </div>
+                } @else {
+                  <span class="item-text" (click)="startEditItem(item)" title="Click to edit">{{ item.text }}</span>
+                  <button class="delete-item-btn" (click)="deleteItem(item)" title="Remove item">✕</button>
+                }
               </li>
             }
           </ul>
@@ -83,9 +96,10 @@ import { CardService } from '../../../../core/services/card.service';
               placeholder="New item..."
               (keydown.enter)="confirmAddItem()"
               (keydown.escape)="cancelAddItem()"
+              (blur)="onInputBlur()"
               autofocus />
-            <button class="confirm-btn" (click)="confirmAddItem()" [disabled]="!newItemText.trim()">Add</button>
-            <button class="cancel-btn" (click)="cancelAddItem()">✕</button>
+            <button class="confirm-btn" (mousedown)="$event.preventDefault()" (click)="confirmAddItem()" [disabled]="!newItemText.trim()">Add</button>
+            <button class="cancel-btn" (mousedown)="$event.preventDefault()" (click)="cancelAddItem()">✕</button>
           </div>
         } @else {
           <button class="add-item-btn" (click)="startAddItem()">+ Add item</button>
@@ -259,10 +273,32 @@ import { CardService } from '../../../../core/services/card.service';
       font-size: 0.82rem;
       color: var(--text-secondary);
       transition: color 0.2s, text-decoration 0.2s;
+      cursor: pointer;
+    }
+    .item-text:hover {
+      color: var(--text-primary);
     }
     .item.completed .item-text {
       color: var(--text-muted);
       text-decoration: line-through;
+    }
+
+    .edit-item-row {
+      flex: 1;
+      min-width: 0;
+      box-sizing: border-box;
+    }
+    .edit-item-input {
+      width: 100%;
+      box-sizing: border-box;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid var(--accent-primary);
+      border-radius: var(--radius-sm);
+      padding: 0.15rem 0.4rem;
+      color: var(--text-primary);
+      font-size: 0.82rem;
+      font-family: var(--font-family);
+      outline: none;
     }
 
     .delete-item-btn {
@@ -351,11 +387,15 @@ export class TopicCardComponent {
   @Input({ required: true }) card!: Card;
   @Output() editClicked = new EventEmitter<void>();
   @ViewChild('newItemInput') newItemInput?: ElementRef<HTMLInputElement>;
+  @ViewChildren('editItemInput') editItemInputs?: QueryList<ElementRef<HTMLInputElement>>;
 
   private readonly cardService = inject(CardService);
 
   protected addingItem = false;
   protected newItemText = '';
+
+  protected editingItemId: number | null = null;
+  protected editingItemText = '';
 
   protected get completedCount(): number {
     return this.card.listItems.filter(i => i.isCompleted).length;
@@ -380,6 +420,31 @@ export class TopicCardComponent {
     this.cardService.updateListItem(this.card.id, { ...item, isCompleted: !item.isCompleted }).subscribe();
   }
 
+  protected startEditItem(item: ListItem): void {
+    this.editingItemId = item.id;
+    this.editingItemText = item.text;
+    setTimeout(() => {
+      this.editItemInputs?.first?.nativeElement?.focus();
+    }, 0);
+  }
+
+  protected confirmEditItem(item: ListItem): void {
+    if (this.editingItemId !== item.id) return;
+    const trimmed = this.editingItemText.trim();
+    if (!trimmed) {
+      this.cancelEditItem();
+      return;
+    }
+    if (trimmed !== item.text) {
+      this.cardService.updateListItem(this.card.id, { ...item, text: trimmed }).subscribe();
+    }
+    this.editingItemId = null;
+  }
+
+  protected cancelEditItem(): void {
+    this.editingItemId = null;
+  }
+
   protected deleteItem(item: ListItem): void {
     this.cardService.deleteListItem(this.card.id, item.id).subscribe();
   }
@@ -401,5 +466,9 @@ export class TopicCardComponent {
   protected cancelAddItem(): void {
     this.addingItem = false;
     this.newItemText = '';
+  }
+
+  protected onInputBlur(): void {
+    this.cancelAddItem();
   }
 }
