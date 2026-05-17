@@ -17,9 +17,9 @@ export class UserService {
    * retrieve the corresponding User record. Should be called once after a
    * successful Google login.
    */
-  bootstrapUser(idToken: string): Observable<User> {
+  bootstrapUser(idToken: string, accessToken?: string): Observable<User> {
     return this.http
-      .post<User>(`${environment.apiBaseUrl}/api/auth/me`, { idToken })
+      .post<User>(`${environment.apiBaseUrl}/api/auth/me`, { idToken, accessToken })
       .pipe(tap(user => this.currentUser.set(user)));
   }
 }

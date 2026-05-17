@@ -33,7 +33,8 @@ export class AuthService {
 
       // Bootstrap the backend user immediately after token is confirmed valid
       const idToken = this.oauthService.getIdToken();
-      this.userService.bootstrapUser(idToken).subscribe();
+      const accessToken = this.oauthService.getAccessToken();
+      this.userService.bootstrapUser(idToken, accessToken).subscribe();
 
       // Load Google profile in the background for display purposes
       this.oauthService.loadUserProfile()

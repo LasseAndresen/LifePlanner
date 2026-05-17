@@ -1,17 +1,18 @@
 import { Component, Input, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { DragDropModule } from '@angular/cdk/drag-drop';
 import { Card, ListItem } from '../../../../core/models/planner.models';
 import { CardService } from '../../../../core/services/card.service';
 
 @Component({
   selector: 'app-topic-card',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, DragDropModule],
   template: `
     <div class="topic-card glass-panel" [style.border-left-color]="card.category?.color ?? '#6366f1'">
 
-      <div class="card-header">
+      <div class="card-header" cdkDragHandle>
         <h4>{{ card.title }}</h4>
         <div class="header-badges">
           @if (card.isChecklist) {
@@ -77,11 +78,11 @@ import { CardService } from '../../../../core/services/card.service';
     .topic-card {
       padding: 1rem;
       margin-bottom: 0.75rem;
-      cursor: grab;
+      cursor: default;
       transition: box-shadow 0.2s, transform 0.15s;
       border-left: 4px solid transparent;
     }
-    .topic-card:active { cursor: grabbing; transform: scale(0.98); }
+    .topic-card:active { transform: scale(0.98); }
     .topic-card:hover { box-shadow: 0 8px 32px rgba(255, 255, 255, 0.1); }
 
     .card-header {
@@ -90,7 +91,10 @@ import { CardService } from '../../../../core/services/card.service';
       align-items: flex-start;
       margin-bottom: 0.5rem;
       gap: 0.5rem;
+      cursor: grab;
+      user-select: none;
     }
+    .card-header:active { cursor: grabbing; }
     h4 {
       font-size: 0.95rem;
       font-weight: 600;
