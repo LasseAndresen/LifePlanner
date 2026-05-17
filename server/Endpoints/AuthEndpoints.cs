@@ -31,7 +31,10 @@ public static class AuthEndpoints
                 {
                     Name = payload.Name,
                     Email = payload.Email,
-                    GoogleAuthId = payload.Subject
+                    GoogleAuthId = payload.Subject,
+                    GoogleAccessToken = request.AccessToken,
+                    GoogleRefreshToken = request.RefreshToken,
+                    GoogleTokenExpiration = request.ExpiresIn.HasValue ? DateTime.UtcNow.AddSeconds(request.ExpiresIn.Value) : null
                 };
                 await userRepo.AddAsync(user);
 
@@ -44,10 +47,24 @@ public static class AuthEndpoints
                     new Category { Name = "Personal", Color = "#ec4899", UserId = user.Id }
                 });
             }
+            else if (!string.IsNullOrEmpty(request.AccessToken))
+            {
+                // Update tokens if they are provided during login
+                user.GoogleAccessToken = request.AccessToken;
+                if (!string.IsNullOrEmpty(request.RefreshToken))
+                {
+                    user.GoogleRefreshToken = request.RefreshToken;
+                }
+                if (request.ExpiresIn.HasValue)
+                {
+                    user.GoogleTokenExpiration = DateTime.UtcNow.AddSeconds(request.ExpiresIn.Value);
+                }
+                await userRepo.UpdateAsync(user);
+            }
 
             return Results.Ok(user);
         }).WithTags("Auth");
     }
 }
 
-public record AuthRequest(string IdToken);
+public record AuthRequest(string IdToken, string? AccessToken = null, string? RefreshToken = null, int? ExpiresIn = null);

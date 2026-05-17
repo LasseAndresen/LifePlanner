@@ -69,7 +69,11 @@ export class PlannerComponent {
   onCardFormSubmit(data: CardFormData): void {
     const userId = this.userService.currentUser()?.id;
     if (!userId) return;
-    this.cardService.createCard({ ...data, userId }).subscribe();
+    this.cardService.createCard({
+      ...data,
+      userId,
+      listItems: []
+    }).subscribe();
     this.isFormOpen.set(false);
   }
 

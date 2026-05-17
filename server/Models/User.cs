@@ -6,6 +6,9 @@ public class User
     public string Name { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
     public string? GoogleAuthId { get; set; }
+    public string? GoogleAccessToken { get; set; }
+    public string? GoogleRefreshToken { get; set; }
+    public DateTime? GoogleTokenExpiration { get; set; }
     
     // Navigation properties
     public ICollection<Category> Categories { get; set; } = new List<Category>();

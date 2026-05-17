@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using LifePlanner.Api.Data;
 using LifePlanner.Api.Endpoints;
+using LifePlanner.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -14,6 +15,8 @@ builder.Services.AddDbContext<LifePlannerDbContext>(options =>
 builder.Services.AddScoped<LifePlanner.Api.Repositories.ICardRepository, LifePlanner.Api.Repositories.CardRepository>();
 builder.Services.AddScoped<LifePlanner.Api.Repositories.ICategoryRepository, LifePlanner.Api.Repositories.CategoryRepository>();
 builder.Services.AddScoped<LifePlanner.Api.Repositories.IUserRepository, LifePlanner.Api.Repositories.UserRepository>();
+
+builder.Services.AddScoped<IGoogleCalendarService, GoogleCalendarService>();
 
 // Allow the Angular dev server to call this API
 builder.Services.AddCors(options =>
@@ -41,5 +44,6 @@ app.MapAuthEndpoints();
 app.MapUserEndpoints();
 app.MapCategoryEndpoints();
 app.MapCardEndpoints();
+app.MapCalendarEndpoints();
 
 app.Run();

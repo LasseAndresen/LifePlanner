@@ -8,6 +8,7 @@ export interface CardFormData {
   title: string;
   description?: string;
   categoryId: number;
+  isChecklist: boolean;
 }
 
 @Component({
@@ -88,6 +89,21 @@ export interface CardFormData {
               </div>
             }
           </div>
+
+          <!-- Checklist toggle -->
+          <div class="field field-row">
+            <span class="toggle-label">Checklist mode</span>
+            <button
+              id="checklist-toggle"
+              type="button"
+              class="toggle"
+              [class.active]="isChecklist"
+              (click)="isChecklist = !isChecklist"
+              [attr.aria-pressed]="isChecklist"
+              title="Toggle checklist mode">
+              <span class="toggle-thumb"></span>
+            </button>
+          </div>
         </div>
 
         <footer class="modal-footer">
@@ -150,6 +166,35 @@ export interface CardFormData {
     .modal-body { padding: 1.25rem 1.5rem; display: flex; flex-direction: column; gap: 1.25rem; }
 
     .field { display: flex; flex-direction: column; gap: 0.5rem; }
+    .field-row { flex-direction: row; align-items: center; justify-content: space-between; }
+    .toggle-label { font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); letter-spacing: 0.04em; text-transform: uppercase; }
+    .toggle {
+      position: relative;
+      width: 44px;
+      height: 24px;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.15);
+      cursor: pointer;
+      transition: background 0.2s, border-color 0.2s;
+      flex-shrink: 0;
+    }
+    .toggle.active {
+      background: linear-gradient(135deg, #6366f1, #ec4899);
+      border-color: transparent;
+    }
+    .toggle-thumb {
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: white;
+      transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+      box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+    }
+    .toggle.active .toggle-thumb { transform: translateX(20px); }
     label { font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); letter-spacing: 0.04em; text-transform: uppercase; }
     .required { color: #ef4444; margin-left: 2px; }
     .optional { color: var(--text-muted); font-weight: 400; text-transform: none; letter-spacing: 0; font-size: 0.75rem; }
@@ -294,6 +339,7 @@ export class CreateCardFormComponent {
   protected title = '';
   protected description = '';
   protected selectedCategoryId: number | null = null;
+  protected isChecklist = false;
 
   protected showNewCat = false;
   protected newCatName = '';
@@ -314,7 +360,8 @@ export class CreateCardFormComponent {
     this.submitted.emit({
       title: this.title.trim(),
       description: this.description.trim() || undefined,
-      categoryId: this.selectedCategoryId!
+      categoryId: this.selectedCategoryId!,
+      isChecklist: this.isChecklist
     });
     this.reset();
   }
@@ -343,6 +390,7 @@ export class CreateCardFormComponent {
     this.title = '';
     this.description = '';
     this.selectedCategoryId = null;
+    this.isChecklist = false;
     this.showNewCat = false;
     this.newCatName = '';
     this.newCatColor = this.presetColors[0];

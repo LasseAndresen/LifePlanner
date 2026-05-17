@@ -8,6 +8,9 @@ public class Card
     
     public DateTime? ScheduledDate { get; set; }
     
+    public bool IsChecklist { get; set; }
+    public ICollection<ListItem> ListItems { get; set; } = new List<ListItem>();
+    
     // Foreign Keys
     public int CategoryId { get; set; }
     public Category? Category { get; set; }

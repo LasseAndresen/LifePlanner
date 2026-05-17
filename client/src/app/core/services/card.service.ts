@@ -1,7 +1,7 @@
 import { Injectable, inject, signal, computed } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable, of, tap, catchError, throwError } from 'rxjs';
-import { Card } from '../models/planner.models';
+import { Observable, tap, catchError, throwError } from 'rxjs';
+import { Card, ListItem } from '../models/planner.models';
 import { environment } from '../../../environments/environment';
 import { NotificationService } from './notification.service';
 
@@ -81,5 +81,51 @@ export class CardService {
           return throwError(() => err);
         })
       );
+  }
+
+  // --- List Item methods ---
+
+  addListItem(cardId: number, text: string): Observable<ListItem> {
+    return this.http
+      .post<ListItem>(`${environment.apiBaseUrl}/api/cards/${cardId}/items`, { text, isCompleted: false, cardId })
+      .pipe(
+        tap(item => this.updateCardItems(cardId, items => [...items, item])),
+        catchError(err => {
+          this.notifications.error('Could not add item.');
+          return throwError(() => err);
+        })
+      );
+  }
+
+  updateListItem(cardId: number, item: ListItem): Observable<ListItem> {
+    return this.http
+      .put<ListItem>(`${environment.apiBaseUrl}/api/cards/${cardId}/items/${item.id}`, item)
+      .pipe(
+        tap(updated => this.updateCardItems(cardId, items =>
+          items.map(i => i.id === updated.id ? updated : i)
+        )),
+        catchError(err => {
+          this.notifications.error('Could not update item.');
+          return throwError(() => err);
+        })
+      );
+  }
+
+  deleteListItem(cardId: number, itemId: number): Observable<void> {
+    return this.http
+      .delete<void>(`${environment.apiBaseUrl}/api/cards/${cardId}/items/${itemId}`)
+      .pipe(
+        tap(() => this.updateCardItems(cardId, items => items.filter(i => i.id !== itemId))),
+        catchError(err => {
+          this.notifications.error('Could not delete item.');
+          return throwError(() => err);
+        })
+      );
+  }
+
+  private updateCardItems(cardId: number, updater: (items: ListItem[]) => ListItem[]): void {
+    this.cardsSignal.update(cards =>
+      cards.map(c => c.id === cardId ? { ...c, listItems: updater(c.listItems) } : c)
+    );
   }
 }

@@ -1,5 +1,7 @@
+using LifePlanner.Api.Data;
 using LifePlanner.Api.Models;
 using LifePlanner.Api.Repositories;
+using Microsoft.EntityFrameworkCore;
 
 namespace LifePlanner.Api.Endpoints;
 
@@ -13,21 +15,7 @@ public static class CardEndpoints
         app.MapGet("/api/users/{userId}/cards", async (int userId, ICardRepository repo) =>
         {
             var cards = await repo.GetCardsByUserIdAsync(userId);
-            var result = cards.Select(c => new CardDto
-            {
-                Id = c.Id,
-                Title = c.Title,
-                Description = c.Description,
-                ScheduledDate = c.ScheduledDate,
-                CategoryId = c.CategoryId,
-                UserId = c.UserId,
-                Category = c.Category != null ? new CategoryDto
-                {
-                    Id = c.Category.Id,
-                    Name = c.Category.Name,
-                    Color = c.Category.Color
-                } : null
-            });
+            var result = cards.Select(ToDto);
             return Results.Ok(result);
         }).WithTags("Cards");
 
@@ -43,27 +31,10 @@ public static class CardEndpoints
 
             await repo.AddAsync(card);
 
-            // Reload and project to DTO
             var createdEntity = await repo.GetCardWithCategoryByIdAsync(card.Id);
             if (createdEntity == null) return Results.Problem("Error loading created card.");
 
-            var created = new CardDto
-            {
-                Id = createdEntity.Id,
-                Title = createdEntity.Title,
-                Description = createdEntity.Description,
-                ScheduledDate = createdEntity.ScheduledDate,
-                CategoryId = createdEntity.CategoryId,
-                UserId = createdEntity.UserId,
-                Category = createdEntity.Category != null ? new CategoryDto
-                {
-                    Id = createdEntity.Category.Id,
-                    Name = createdEntity.Category.Name,
-                    Color = createdEntity.Category.Color
-                } : null
-            };
-
-            return Results.Created($"/api/cards/{card.Id}", created);
+            return Results.Created($"/api/cards/{card.Id}", ToDto(createdEntity));
         });
 
         group.MapPut("/{id}", async (int id, Card updatedCard, ICardRepository repo) =>
@@ -83,30 +54,14 @@ public static class CardEndpoints
             card.Description = updatedCard.Description;
             card.CategoryId = updatedCard.CategoryId;
             card.ScheduledDate = updatedCard.ScheduledDate;
-            
+            card.IsChecklist = updatedCard.IsChecklist;
+
             await repo.UpdateAsync(card);
 
-            // Load and project to DTO
             var resultEntity = await repo.GetCardWithCategoryByIdAsync(id);
             if (resultEntity == null) return Results.NotFound();
 
-            var result = new CardDto
-            {
-                Id = resultEntity.Id,
-                Title = resultEntity.Title,
-                Description = resultEntity.Description,
-                ScheduledDate = resultEntity.ScheduledDate,
-                CategoryId = resultEntity.CategoryId,
-                UserId = resultEntity.UserId,
-                Category = resultEntity.Category != null ? new CategoryDto
-                {
-                    Id = resultEntity.Category.Id,
-                    Name = resultEntity.Category.Name,
-                    Color = resultEntity.Category.Color
-                } : null
-            };
-
-            return Results.Ok(result);
+            return Results.Ok(ToDto(resultEntity));
         });
 
         group.MapDelete("/{id}", async (int id, ICardRepository repo) =>
@@ -117,5 +72,67 @@ public static class CardEndpoints
             await repo.DeleteAsync(card);
             return Results.NoContent();
         });
+
+        // --- List Item endpoints ---
+
+        group.MapPost("/{cardId}/items", async (int cardId, ListItem item, ICardRepository repo, LifePlannerDbContext db) =>
+        {
+            var card = await repo.GetByIdAsync(cardId);
+            if (card is null) return Results.NotFound();
+
+            item.CardId = cardId;
+            db.ListItems.Add(item);
+            await db.SaveChangesAsync();
+
+            return Results.Created($"/api/cards/{cardId}/items/{item.Id}", ToItemDto(item));
+        }).WithTags("Cards");
+
+        group.MapPut("/{cardId}/items/{itemId}", async (int cardId, int itemId, ListItem updatedItem, LifePlannerDbContext db) =>
+        {
+            var item = await db.ListItems.FirstOrDefaultAsync(i => i.Id == itemId && i.CardId == cardId);
+            if (item is null) return Results.NotFound();
+
+            item.Text = updatedItem.Text;
+            item.IsCompleted = updatedItem.IsCompleted;
+            await db.SaveChangesAsync();
+
+            return Results.Ok(ToItemDto(item));
+        }).WithTags("Cards");
+
+        group.MapDelete("/{cardId}/items/{itemId}", async (int cardId, int itemId, LifePlannerDbContext db) =>
+        {
+            var item = await db.ListItems.FirstOrDefaultAsync(i => i.Id == itemId && i.CardId == cardId);
+            if (item is null) return Results.NotFound();
+
+            db.ListItems.Remove(item);
+            await db.SaveChangesAsync();
+            return Results.NoContent();
+        }).WithTags("Cards");
     }
+
+    private static CardDto ToDto(Card c) => new()
+    {
+        Id = c.Id,
+        Title = c.Title,
+        Description = c.Description,
+        ScheduledDate = c.ScheduledDate,
+        IsChecklist = c.IsChecklist,
+        ListItems = c.ListItems.Select(ToItemDto).ToList(),
+        CategoryId = c.CategoryId,
+        UserId = c.UserId,
+        Category = c.Category != null ? new CategoryDto
+        {
+            Id = c.Category.Id,
+            Name = c.Category.Name,
+            Color = c.Category.Color
+        } : null
+    };
+
+    private static ListItemDto ToItemDto(ListItem i) => new()
+    {
+        Id = i.Id,
+        Text = i.Text,
+        IsCompleted = i.IsCompleted,
+        CardId = i.CardId
+    };
 }

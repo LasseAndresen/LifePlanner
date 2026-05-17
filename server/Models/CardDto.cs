@@ -6,6 +6,8 @@ public class CardDto
     public string Title { get; set; } = string.Empty;
     public string? Description { get; set; }
     public DateTime? ScheduledDate { get; set; }
+    public bool IsChecklist { get; set; }
+    public List<ListItemDto> ListItems { get; set; } = new();
     public int CategoryId { get; set; }
     public CategoryDto? Category { get; set; }
     public int UserId { get; set; }
