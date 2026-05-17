@@ -31,6 +31,7 @@ import { DragDropModule, CdkDragDrop } from '@angular/cdk/drag-drop';
         @for (card of cards; track card.id) {
           <app-topic-card
             [card]="card"
+            (editClicked)="editCardClicked.emit(card)"
             cdkDrag
             [cdkDragData]="card">
           </app-topic-card>
@@ -124,6 +125,7 @@ import { DragDropModule, CdkDragDrop } from '@angular/cdk/drag-drop';
 export class CardSidebarComponent {
   @Input({ required: true }) cards: Card[] = [];
   @Output() addCardClicked = new EventEmitter<void>();
+  @Output() editCardClicked = new EventEmitter<Card>();
   @Output() cardDropped = new EventEmitter<CdkDragDrop<any>>();
 
   onDrop(event: CdkDragDrop<any>) {

@@ -18,21 +18,25 @@ import { CdkDragDrop, DragDropModule } from '@angular/cdk/drag-drop';
     <div class="planner-layout" cdkDropListGroup>
       <app-card-sidebar
         [cards]="cardService.unscheduledCards()"
-        (addCardClicked)="isFormOpen.set(true)"
+        (addCardClicked)="startCreateCard()"
+        (editCardClicked)="onEditCard($event)"
         (cardDropped)="onCardDropped($event)">
       </app-card-sidebar>
 
       <app-calendar-grid
         [scheduledCards]="calendarService.scheduledCards()"
         [googleEvents]="calendarService.googleEvents()"
-        (cardDropped)="onCardDropped($event)">
+        (cardDropped)="onCardDropped($event)"
+        (cardEdited)="onEditCard($event)"
+        (cardDeleted)="onCardDeleted($event)">
       </app-calendar-grid>
     </div>
 
     @if (isFormOpen()) {
       <app-create-card-form
+        [cardToEdit]="editingCard()"
         (submitted)="onCardFormSubmit($event)"
-        (cancelled)="isFormOpen.set(false)">
+        (cancelled)="onCardFormCancel()">
       </app-create-card-form>
     }
   `,
@@ -62,6 +66,7 @@ export class PlannerComponent {
   private readonly userService = inject(UserService);
 
   readonly isFormOpen = signal(false);
+  readonly editingCard = signal<Card | null>(null);
 
   constructor() {
     effect(() => {
@@ -87,14 +92,35 @@ export class PlannerComponent {
     });
   }
 
+  startCreateCard(): void {
+    this.editingCard.set(null);
+    this.isFormOpen.set(true);
+  }
+
+  onEditCard(card: Card): void {
+    this.editingCard.set(card);
+    this.isFormOpen.set(true);
+  }
+
+  onCardFormCancel(): void {
+    this.editingCard.set(null);
+    this.isFormOpen.set(false);
+  }
+
   onCardFormSubmit(data: CardFormData): void {
-    const userId = this.userService.currentUser()?.id;
-    if (!userId) return;
-    this.cardService.createCard({
-      ...data,
-      userId,
-      listItems: []
-    }).subscribe();
+    const currentEdit = this.editingCard();
+    if (currentEdit) {
+      this.cardService.updateCard(currentEdit.id, data).subscribe();
+      this.editingCard.set(null);
+    } else {
+      const userId = this.userService.currentUser()?.id;
+      if (!userId) return;
+      this.cardService.createCard({
+        ...data,
+        userId,
+        listItems: []
+      }).subscribe();
+    }
     this.isFormOpen.set(false);
   }
 
@@ -115,5 +141,9 @@ export class PlannerComponent {
         }).subscribe();
       }
     }
+  }
+
+  onCardDeleted(card: Card): void {
+    this.cardService.deleteCard(card.id).subscribe();
   }
 }

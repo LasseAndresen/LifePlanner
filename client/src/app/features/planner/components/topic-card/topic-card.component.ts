@@ -1,4 +1,4 @@
-import { Component, Input, inject, ViewChild, ElementRef } from '@angular/core';
+import { Component, Input, Output, EventEmitter, inject, ViewChild, ElementRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DragDropModule } from '@angular/cdk/drag-drop';
@@ -14,17 +14,27 @@ import { CardService } from '../../../../core/services/card.service';
 
       <!-- Drag handle: only this row initiates dragging -->
       <div class="card-header" cdkDragHandle>
-        <h4>{{ card.title }}</h4>
+        <div class="header-titles">
+          <h4 [title]="card.title">{{ card.title }}</h4>
+          <span class="category-badge" [title]="card.category?.name ?? 'Uncategorized'">
+            {{ card.category?.name ?? 'Uncategorized' }}
+          </span>
+        </div>
         <div class="header-badges">
           <button
-            class="checklist-toggle"
-            [class.active]="card.isChecklist"
-            (click)="$event.stopPropagation(); toggleChecklistMode()"
-            [title]="card.isChecklist ? 'Checklist mode on — click to disable' : 'Enable checklist mode'"
-            aria-label="Toggle checklist mode">
-            ✓
+            class="edit-card-btn"
+            (click)="$event.stopPropagation(); editCard()"
+            title="Edit card"
+            aria-label="Edit card">
+            ✎
           </button>
-          <span class="category-badge">{{ card.category?.name ?? 'Uncategorized' }}</span>
+          <button
+            class="delete-card-btn"
+            (click)="$event.stopPropagation(); deleteCard()"
+            title="Delete card"
+            aria-label="Delete card">
+            ✕
+          </button>
         </div>
       </div>
 
@@ -92,6 +102,9 @@ import { CardService } from '../../../../core/services/card.service';
       cursor: default;
       transition: box-shadow 0.2s, transform 0.15s;
       border-left: 4px solid transparent;
+      box-sizing: border-box;
+      width: 100%;
+      overflow: hidden;
     }
     .topic-card:hover { box-shadow: 0 8px 32px rgba(255, 255, 255, 0.1); }
 
@@ -99,34 +112,59 @@ import { CardService } from '../../../../core/services/card.service';
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
-      margin-bottom: 0.35rem;
+      margin-bottom: 0.5rem;
       gap: 0.5rem;
       cursor: grab;
       user-select: none;
+      width: 100%;
+      box-sizing: border-box;
     }
     .card-header:active { cursor: grabbing; }
+
+    .header-titles {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.25rem;
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+    }
 
     h4 {
       font-size: 0.95rem;
       font-weight: 600;
       color: var(--text-primary);
-      flex: 1;
+      width: 100%;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin: 0;
+      line-height: 1.2;
     }
+
     .header-badges {
       display: flex;
       align-items: center;
       gap: 0.35rem;
       flex-shrink: 0;
     }
+
     .category-badge {
       font-size: 0.7rem;
-      padding: 0.2rem 0.5rem;
+      padding: 0.15rem 0.45rem;
       border-radius: var(--radius-full);
-      background: var(--bg-secondary);
+      background: rgba(255, 255, 255, 0.08);
       color: var(--text-secondary);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      max-width: 100%;
+      box-sizing: border-box;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
-    .checklist-toggle {
+    .edit-card-btn, .delete-card-btn {
       font-size: 0.65rem;
       padding: 0.15rem 0.4rem;
       border-radius: var(--radius-full);
@@ -138,15 +176,15 @@ import { CardService } from '../../../../core/services/card.service';
       transition: background 0.15s, color 0.15s, border-color 0.15s;
       line-height: 1.4;
     }
-    .checklist-toggle:hover {
-      background: rgba(99, 102, 241, 0.15);
-      border-color: rgba(99, 102, 241, 0.4);
-      color: #a5b4fc;
+    .edit-card-btn:hover {
+      background: rgba(59, 130, 246, 0.15);
+      border-color: rgba(59, 130, 246, 0.4);
+      color: #60a5fa;
     }
-    .checklist-toggle.active {
-      background: rgba(99, 102, 241, 0.2);
-      border-color: rgba(99, 102, 241, 0.5);
-      color: #a5b4fc;
+    .delete-card-btn:hover {
+      background: rgba(239, 68, 68, 0.15);
+      border-color: rgba(239, 68, 68, 0.4);
+      color: #ef4444;
     }
 
     .description {
@@ -258,9 +296,13 @@ import { CardService } from '../../../../core/services/card.service';
       display: flex;
       gap: 0.3rem;
       align-items: center;
+      width: 100%;
+      box-sizing: border-box;
     }
     .new-item-input {
       flex: 1;
+      min-width: 0;
+      box-sizing: border-box;
       background: rgba(255,255,255,0.05);
       border: 1px solid rgba(255,255,255,0.12);
       border-radius: var(--radius-sm);
@@ -275,6 +317,8 @@ import { CardService } from '../../../../core/services/card.service';
     .new-item-input::placeholder { color: var(--text-muted); }
 
     .confirm-btn {
+      flex-shrink: 0;
+      box-sizing: border-box;
       padding: 0.28rem 0.55rem;
       background: rgba(99,102,241,0.22);
       border: 1px solid rgba(99,102,241,0.4);
@@ -290,6 +334,8 @@ import { CardService } from '../../../../core/services/card.service';
     .confirm-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 
     .cancel-btn {
+      flex-shrink: 0;
+      box-sizing: border-box;
       background: none;
       border: none;
       color: var(--text-muted);
@@ -303,6 +349,7 @@ import { CardService } from '../../../../core/services/card.service';
 })
 export class TopicCardComponent {
   @Input({ required: true }) card!: Card;
+  @Output() editClicked = new EventEmitter<void>();
   @ViewChild('newItemInput') newItemInput?: ElementRef<HTMLInputElement>;
 
   private readonly cardService = inject(CardService);
@@ -319,8 +366,14 @@ export class TopicCardComponent {
     return Math.round((this.completedCount / this.card.listItems.length) * 100);
   }
 
-  protected toggleChecklistMode(): void {
-    this.cardService.updateCard(this.card.id, { isChecklist: !this.card.isChecklist }).subscribe();
+  protected editCard(): void {
+    this.editClicked.emit();
+  }
+
+  protected deleteCard(): void {
+    if (confirm(`Are you sure you want to delete "${this.card.title}"?`)) {
+      this.cardService.deleteCard(this.card.id).subscribe();
+    }
   }
 
   protected toggleItem(item: ListItem): void {

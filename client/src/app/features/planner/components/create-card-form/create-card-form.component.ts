@@ -1,8 +1,9 @@
-import { Component, EventEmitter, Output, inject } from '@angular/core';
+import { Component, EventEmitter, Input, Output, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { CategoryService } from '../../../../core/services/category.service';
 import { UserService } from '../../../../core/services/user.service';
+import { Card } from '../../../../core/models/planner.models';
 
 export interface CardFormData {
   title: string;
@@ -20,7 +21,7 @@ export interface CardFormData {
       <div class="modal glass-panel" (click)="$event.stopPropagation()">
 
         <header class="modal-header">
-          <h2>New Card</h2>
+          <h2>{{ cardToEdit ? 'Edit Card' : 'New Card' }}</h2>
           <button class="close-btn" (click)="onCancel()">✕</button>
         </header>
 
@@ -109,7 +110,7 @@ export interface CardFormData {
         <footer class="modal-footer">
           <button class="btn-ghost" (click)="onCancel()">Cancel</button>
           <button class="btn-primary" (click)="onSubmit()" [disabled]="!isValid">
-            Create Card →
+            {{ cardToEdit ? 'Save Changes →' : 'Create Card →' }}
           </button>
         </footer>
 
@@ -330,6 +331,22 @@ export interface CardFormData {
   `]
 })
 export class CreateCardFormComponent {
+  @Input() set cardToEdit(card: Card | null | undefined) {
+    this._cardToEdit = card;
+    if (card) {
+      this.title = card.title;
+      this.description = card.description || '';
+      this.selectedCategoryId = card.categoryId;
+      this.isChecklist = card.isChecklist;
+    } else {
+      this.reset();
+    }
+  }
+  get cardToEdit(): Card | null | undefined {
+    return this._cardToEdit;
+  }
+  private _cardToEdit?: Card | null;
+
   @Output() submitted = new EventEmitter<CardFormData>();
   @Output() cancelled = new EventEmitter<void>();
 

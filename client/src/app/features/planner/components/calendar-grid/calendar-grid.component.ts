@@ -58,7 +58,25 @@ interface DayColumn {
                   [style.border-left-color]="card.category?.color ?? '#6366f1'"
                   cdkDrag
                   [cdkDragData]="card">
-                  <h4>{{ card.title }}</h4>
+                  <div class="card-header">
+                    <h4>{{ card.title }}</h4>
+                    <div class="card-actions">
+                      <button
+                        class="edit-btn"
+                        (click)="$event.stopPropagation(); onEditCard(card)"
+                        title="Edit card"
+                        aria-label="Edit card">
+                        ✎
+                      </button>
+                      <button
+                        class="delete-btn"
+                        (click)="$event.stopPropagation(); onDeleteCard(card)"
+                        title="Delete card"
+                        aria-label="Delete card">
+                        ✕
+                      </button>
+                    </div>
+                  </div>
                 </div>
               }
               
@@ -198,10 +216,49 @@ interface DayColumn {
     .event-card:hover {
       box-shadow: 0 8px 32px rgba(255, 255, 255, 0.1);
     }
+    .event-card .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 0.5rem;
+    }
     .event-card h4 {
       margin: 0;
       font-size: 0.95rem;
       color: var(--text-primary);
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .card-actions {
+      display: flex;
+      gap: 0.25rem;
+      align-items: center;
+    }
+    .edit-btn, .delete-btn {
+      opacity: 0;
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      cursor: pointer;
+      padding: 0.15rem 0.35rem;
+      border-radius: 4px;
+      transition: opacity 0.15s, color 0.15s, background 0.15s;
+      line-height: 1;
+      flex-shrink: 0;
+    }
+    .event-card:hover .edit-btn,
+    .event-card:hover .delete-btn {
+      opacity: 1;
+    }
+    .edit-btn:hover {
+      color: #60a5fa;
+      background: rgba(59, 130, 246, 0.15);
+    }
+    .delete-btn:hover {
+      color: #ef4444;
+      background: rgba(239, 68, 68, 0.15);
     }
 
     .empty-timeline {
@@ -227,6 +284,8 @@ export class CalendarGridComponent implements OnChanges {
   @Input({ required: true }) scheduledCards: Card[] = [];
   @Input() googleEvents: GoogleCalendarEvent[] = [];
   @Output() cardDropped = new EventEmitter<CdkDragDrop<any>>();
+  @Output() cardEdited = new EventEmitter<Card>();
+  @Output() cardDeleted = new EventEmitter<Card>();
 
   days: DayColumn[] = [];
 
@@ -295,6 +354,16 @@ export class CalendarGridComponent implements OnChanges {
 
   onDrop(event: CdkDragDrop<any>) {
     this.cardDropped.emit(event);
+  }
+
+  onEditCard(card: Card) {
+    this.cardEdited.emit(card);
+  }
+
+  onDeleteCard(card: Card) {
+    if (confirm(`Are you sure you want to delete "${card.title}"?`)) {
+      this.cardDeleted.emit(card);
+    }
   }
 }
 
