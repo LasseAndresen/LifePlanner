@@ -46,9 +46,14 @@ import { DragDropModule, CdkDragDrop } from '@angular/cdk/drag-drop';
     </div>
   `,
   styles: [`
+    :host {
+      display: block;
+      height: 100%;
+      overflow: hidden;
+      min-height: 0;
+    }
     .sidebar-container {
-      width: 320px;
-      flex-shrink: 0;
+      width: 100%;
       height: 100%;
       padding: 1.5rem;
       display: flex;
@@ -59,11 +64,14 @@ import { DragDropModule, CdkDragDrop } from '@angular/cdk/drag-drop';
       border-bottom: none;
       border-left: none;
       background: rgba(18, 18, 26, 0.6);
+      box-sizing: border-box;
+      overflow: hidden;
     }
     .sidebar-header {
       display: flex;
       align-items: flex-start;
       justify-content: space-between;
+      flex-shrink: 0;
     }
     h2 {
       font-size: 1.4rem;
@@ -95,7 +103,8 @@ import { DragDropModule, CdkDragDrop } from '@angular/cdk/drag-drop';
     .card-list {
       flex: 1;
       overflow-y: auto;
-      min-height: 100px;
+      min-height: 0;
+      padding-right: 0.5rem;
     }
     .empty-state {
       text-align: center;

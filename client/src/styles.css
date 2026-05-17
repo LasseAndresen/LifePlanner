@@ -66,6 +66,7 @@ body {
   opacity: 0.9;
   z-index: 2000 !important;
   pointer-events: none !important;
+  overflow: hidden !important;
 }
 
 .cdk-drag-placeholder {
@@ -91,3 +92,29 @@ body {
   /* Use a slightly more opaque background when blur is off for better contrast */
   background: rgba(18, 18, 30, 0.9) !important;
 }
+
+/* Premium Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: var(--radius-full);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: var(--radius-full);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(99, 102, 241, 0.45);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+}
+

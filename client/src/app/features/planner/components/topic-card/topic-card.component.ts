@@ -1,4 +1,4 @@
-import { Component, Input, inject } from '@angular/core';
+import { Component, Input, inject, ViewChild, ElementRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DragDropModule } from '@angular/cdk/drag-drop';
@@ -67,6 +67,7 @@ import { CardService } from '../../../../core/services/card.service';
         @if (addingItem) {
           <div class="add-item-row">
             <input
+              #newItemInput
               class="new-item-input"
               [(ngModel)]="newItemText"
               placeholder="New item..."
@@ -302,6 +303,7 @@ import { CardService } from '../../../../core/services/card.service';
 })
 export class TopicCardComponent {
   @Input({ required: true }) card!: Card;
+  @ViewChild('newItemInput') newItemInput?: ElementRef<HTMLInputElement>;
 
   private readonly cardService = inject(CardService);
 
@@ -332,13 +334,15 @@ export class TopicCardComponent {
   protected startAddItem(): void {
     this.addingItem = true;
     this.newItemText = '';
+    setTimeout(() => this.newItemInput?.nativeElement?.focus(), 0);
   }
 
   protected confirmAddItem(): void {
     if (!this.newItemText.trim()) return;
     this.cardService.addListItem(this.card.id, this.newItemText.trim()).subscribe();
     this.newItemText = '';
-    this.addingItem = false;
+    // Keep the input open and focused so the user can rapidly type another item
+    setTimeout(() => this.newItemInput?.nativeElement?.focus(), 0);
   }
 
   protected cancelAddItem(): void {

@@ -24,6 +24,7 @@ import { CdkDragDrop, DragDropModule } from '@angular/cdk/drag-drop';
 
       <app-calendar-grid
         [scheduledCards]="calendarService.scheduledCards()"
+        [googleEvents]="calendarService.googleEvents()"
         (cardDropped)="onCardDropped($event)">
       </app-calendar-grid>
     </div>
@@ -46,6 +47,12 @@ import { CdkDragDrop, DragDropModule } from '@angular/cdk/drag-drop';
         radial-gradient(circle at bottom left, rgba(236, 72, 153, 0.15), transparent 40%);
       overflow: hidden;
     }
+    .planner-layout > * {
+      min-height: 0;
+      min-width: 0;
+      height: 100%;
+      overflow: hidden;
+    }
   `]
 })
 export class PlannerComponent {
@@ -62,6 +69,20 @@ export class PlannerComponent {
       if (user) {
         this.cardService.loadCards(user.id);
         this.categoryService.loadCategories(user.id);
+        
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        const dayOfWeek = today.getDay();
+        const diffToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+        
+        const start = new Date(today);
+        start.setDate(today.getDate() - diffToMonday); // Start of this week (Monday)
+        
+        const end = new Date(start);
+        end.setDate(end.getDate() + 7); // 7 days from Monday
+        
+        this.calendarService.loadGoogleEvents(user.id, start, end);
       }
     });
   }
@@ -81,10 +102,11 @@ export class PlannerComponent {
     if (event.previousContainer !== event.container) {
       const droppedCard = event.item.data as Card;
       
-      if (event.container.id === 'calendarGridList') {
+      if (event.container.id.startsWith('calendar-day-')) {
         // Moving from sidebar to calendar -> Schedule it
+        const dateIso = event.container.id.replace('calendar-day-', '');
         this.cardService.updateCard(droppedCard.id, {
-          scheduledDate: new Date().toISOString()
+          scheduledDate: dateIso
         }).subscribe();
       } else if (event.container.id === 'sidebarList') {
         // Moving from calendar to sidebar -> Unschedule it

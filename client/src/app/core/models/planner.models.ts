@@ -29,3 +29,16 @@ export interface Card {
   userId: number;
   category?: Category;   // Populated when the backend includes the navigation property
 }
+
+export interface GoogleCalendarEvent {
+  id: string;
+  summary: string;
+  start: {
+    dateTime?: string;
+    date?: string;
+  };
+  end: {
+    dateTime?: string;
+    date?: string;
+  };
+}

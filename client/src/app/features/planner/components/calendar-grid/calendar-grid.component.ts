@@ -1,7 +1,15 @@
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { Component, EventEmitter, Input, Output, OnChanges, SimpleChanges } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Card } from '../../../../core/models/planner.models';
+import { Card, GoogleCalendarEvent } from '../../../../core/models/planner.models';
 import { DragDropModule, CdkDragDrop } from '@angular/cdk/drag-drop';
+
+interface DayColumn {
+  date: Date;
+  dateIso: string;
+  label: string;
+  cards: Card[];
+  googleEvents: GoogleCalendarEvent[];
+}
 
 @Component({
   selector: 'app-calendar-grid',
@@ -10,84 +18,175 @@ import { DragDropModule, CdkDragDrop } from '@angular/cdk/drag-drop';
   template: `
     <div class="calendar-container">
       <header class="calendar-header">
-        <h1>Today's Plan</h1>
+        <h1>Your Week Ahead</h1>
       </header>
       
-      <div class="timeline glass-panel">
-        <!-- Simplified 1-day timeline for MVP -->
-        <div 
-          class="drop-zone"
-          cdkDropList
-          id="calendarGridList"
-          [cdkDropListData]="scheduledCards"
-          (cdkDropListDropped)="onDrop($event)">
-          
-          @for (card of scheduledCards; track card.id) {
+      <div class="calendar-grid">
+        @for (day of days; track day.dateIso) {
+          <div class="day-column glass-panel">
+            <div class="day-header">
+              <span class="day-name">{{ day.date | date:'EEEE' }}</span>
+              <span class="day-date">{{ day.date | date:'MMM d' }}</span>
+            </div>
+            
             <div 
-              class="event-card glass-panel" 
-              [style.border-left-color]="card.category?.color ?? '#6366f1'"
-              cdkDrag
-              [cdkDragData]="card">
-              <h4>{{ card.title }}</h4>
-              <span class="time">{{ card.scheduledDate | date:'shortDate' }}</span>
+              class="drop-zone"
+              cdkDropList
+              [id]="'calendar-day-' + day.dateIso"
+              [cdkDropListData]="day.cards"
+              (cdkDropListDropped)="onDrop($event)">
+              
+              <!-- Google Calendar Events (Read Only) -->
+              @for (event of day.googleEvents; track event.id) {
+                <div class="google-event-card">
+                  <div class="google-icon">G</div>
+                  <div class="event-details">
+                    <h4>{{ event.summary }}</h4>
+                    @if (event.start?.dateTime) {
+                      <span class="time">{{ event.start.dateTime | date:'shortTime' }}</span>
+                    } @else {
+                      <span class="time">All Day</span>
+                    }
+                  </div>
+                </div>
+              }
+
+              <!-- LifePlanner Cards -->
+              @for (card of day.cards; track card.id) {
+                <div 
+                  class="event-card glass-panel" 
+                  [style.border-left-color]="card.category?.color ?? '#6366f1'"
+                  cdkDrag
+                  [cdkDragData]="card">
+                  <h4>{{ card.title }}</h4>
+                </div>
+              }
+              
+              @if (day.cards.length === 0 && day.googleEvents.length === 0) {
+                <div class="empty-timeline">
+                  <p>Clear</p>
+                </div>
+              }
             </div>
-          } @empty {
-            <div class="empty-timeline">
-              <p>Your day is empty. Drag some cards here!</p>
-            </div>
-          }
-        </div>
+          </div>
+        }
       </div>
     </div>
   `,
   styles: [`
+    :host {
+      display: block;
+      height: 100%;
+      overflow: hidden;
+      min-height: 0;
+    }
     .calendar-container {
-      flex: 1;
+      width: 100%;
+      height: 100%;
+      box-sizing: border-box;
       display: flex;
       flex-direction: column;
       padding: 2rem;
-      height: 100%;
+      overflow: hidden;
     }
     .calendar-header {
       margin-bottom: 2rem;
+      flex-shrink: 0;
     }
     h1 {
       font-size: 2rem;
       font-weight: 700;
       color: var(--text-primary);
     }
-    .timeline {
+    .calendar-grid {
       flex: 1;
-      padding: 1.5rem;
-      background: rgba(255, 255, 255, 0.01);
-      border-radius: var(--radius-lg);
-      overflow-y: auto;
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 1rem;
+      overflow-y: hidden;
+      min-height: 0;
     }
-    .drop-zone {
-      width: 100%;
-      min-height: 100%;
+    .day-column {
       display: flex;
       flex-direction: column;
-      gap: 1rem;
+      background: rgba(255, 255, 255, 0.02);
+      border-radius: var(--radius-lg);
+      padding: 1rem;
+      height: 100%;
+      min-height: 0;
+      overflow: hidden;
+      box-sizing: border-box;
     }
-    .empty-timeline {
+    .day-header {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-bottom: 1rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid var(--border-glass);
+      flex-shrink: 0;
+    }
+    .day-name {
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    .day-date {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+    }
+    .drop-zone {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      overflow-y: auto;
+      min-height: 0;
+    }
+    
+    /* Google Event Style */
+    .google-event-card {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.75rem;
+      background: rgba(66, 133, 244, 0.15); /* Google Blue */
+      border-left: 4px solid #4285F4;
+      border-radius: var(--radius-md);
+      color: var(--text-primary);
+    }
+    .google-icon {
+      background: #4285F4;
+      color: white;
+      font-weight: bold;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
-      height: 100%;
-      width: 100%;
-      border: 2px dashed var(--border-glass-strong);
-      border-radius: var(--radius-md);
-      color: var(--text-muted);
-      font-size: 1.1rem;
-      text-align: center;
-      padding: 2rem;
+      font-size: 0.8rem;
+      flex-shrink: 0;
     }
-    .event-card {
-      padding: 1rem;
+    .event-details {
       display: flex;
-      justify-content: space-between;
-      align-items: center;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .event-details h4 {
+      margin: 0;
+      font-size: 0.95rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .event-details .time {
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+    }
+
+    /* LifePlanner Card Style */
+    .event-card {
+      padding: 0.75rem;
       border-left: 4px solid transparent;
       cursor: grab;
       transition: box-shadow 0.2s;
@@ -101,20 +200,98 @@ import { DragDropModule, CdkDragDrop } from '@angular/cdk/drag-drop';
     }
     .event-card h4 {
       margin: 0;
-      font-size: 1.1rem;
+      font-size: 0.95rem;
       color: var(--text-primary);
     }
-    .time {
-      font-size: 0.85rem;
-      color: var(--text-secondary);
+
+    .empty-timeline {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex: 1;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      border: 1px dashed transparent;
+    }
+    
+    /* Highlight drop zone when dragging over */
+    .cdk-drop-list-receiving {
+      background: rgba(255,255,255, 0.05);
+      border-radius: var(--radius-md);
     }
 
     .cdk-drag-animating { transition: transform 250ms cubic-bezier(0, 0, 0.2, 1); }
   `]
 })
-export class CalendarGridComponent {
+export class CalendarGridComponent implements OnChanges {
   @Input({ required: true }) scheduledCards: Card[] = [];
+  @Input() googleEvents: GoogleCalendarEvent[] = [];
   @Output() cardDropped = new EventEmitter<CdkDragDrop<any>>();
+
+  days: DayColumn[] = [];
+
+  constructor() {
+    this.generateDays();
+  }
+
+  ngOnChanges(changes: SimpleChanges): void {
+    if (changes['scheduledCards'] || changes['googleEvents']) {
+      this.distributeItems();
+    }
+  }
+
+  private generateDays() {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    // Find the most recent Monday
+    const dayOfWeek = today.getDay();
+    const diffToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+    const startOfWeek = new Date(today);
+    startOfWeek.setDate(today.getDate() - diffToMonday);
+
+    this.days = Array.from({ length: 7 }).map((_, i) => {
+      const date = new Date(startOfWeek);
+      date.setDate(date.getDate() + i);
+      return {
+        date,
+        dateIso: date.toISOString(),
+        label: date.toDateString(),
+        cards: [],
+        googleEvents: []
+      };
+    });
+  }
+
+  private distributeItems() {
+    // Reset cards and events
+    this.days.forEach(day => {
+      day.cards = [];
+      day.googleEvents = [];
+    });
+
+    // Helper to find the matching day column
+    const findDayColumn = (dateString: string | undefined): DayColumn | undefined => {
+      if (!dateString) return undefined;
+      const date = new Date(dateString);
+      date.setHours(0, 0, 0, 0);
+      const time = date.getTime();
+      return this.days.find(d => d.date.getTime() === time);
+    };
+
+    // Distribute LifePlanner cards
+    this.scheduledCards.forEach(card => {
+      const col = findDayColumn(card.scheduledDate);
+      if (col) col.cards.push(card);
+    });
+
+    // Distribute Google Calendar events
+    this.googleEvents.forEach(event => {
+      const startStr = event.start?.dateTime || event.start?.date;
+      const col = findDayColumn(startStr);
+      if (col) col.googleEvents.push(event);
+    });
+  }
 
   onDrop(event: CdkDragDrop<any>) {
     this.cardDropped.emit(event);
