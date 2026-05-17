@@ -11,6 +11,10 @@ builder.Services.AddProblemDetails();
 builder.Services.AddDbContext<LifePlannerDbContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
 
+builder.Services.AddScoped<LifePlanner.Api.Repositories.ICardRepository, LifePlanner.Api.Repositories.CardRepository>();
+builder.Services.AddScoped<LifePlanner.Api.Repositories.ICategoryRepository, LifePlanner.Api.Repositories.CategoryRepository>();
+builder.Services.AddScoped<LifePlanner.Api.Repositories.IUserRepository, LifePlanner.Api.Repositories.UserRepository>();
+
 // Allow the Angular dev server to call this API
 builder.Services.AddCors(options =>
 {

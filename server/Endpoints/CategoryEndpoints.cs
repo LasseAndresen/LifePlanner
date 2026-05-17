@@ -1,6 +1,5 @@
-using LifePlanner.Api.Data;
 using LifePlanner.Api.Models;
-using Microsoft.EntityFrameworkCore;
+using LifePlanner.Api.Repositories;
 
 namespace LifePlanner.Api.Endpoints;
 
@@ -11,21 +10,19 @@ public static class CategoryEndpoints
         var group = app.MapGroup("/api/categories").WithTags("Categories");
 
         // We also want an endpoint to get all categories for a user
-        app.MapGet("/api/users/{userId}/categories", async (int userId, LifePlannerDbContext db) =>
+        app.MapGet("/api/users/{userId}/categories", async (int userId, ICategoryRepository repo) =>
         {
-            var categories = await db.Categories
-                .Where(c => c.UserId == userId)
-                .Select(c => new CategoryDto
-                {
-                    Id = c.Id,
-                    Name = c.Name,
-                    Color = c.Color
-                })
-                .ToListAsync();
-            return Results.Ok(categories);
+            var categories = await repo.GetCategoriesByUserIdAsync(userId);
+            var result = categories.Select(c => new CategoryDto
+            {
+                Id = c.Id,
+                Name = c.Name,
+                Color = c.Color
+            });
+            return Results.Ok(result);
         }).WithTags("Categories");
 
-        group.MapPost("/", async (Category category, LifePlannerDbContext db) =>
+        group.MapPost("/", async (Category category, ICategoryRepository repo) =>
         {
             if (string.IsNullOrWhiteSpace(category.Name) || category.UserId <= 0)
             {
@@ -35,8 +32,7 @@ public static class CategoryEndpoints
                 });
             }
 
-            db.Categories.Add(category);
-            await db.SaveChangesAsync();
+            await repo.AddAsync(category);
             
             var result = new CategoryDto
             {
@@ -48,7 +44,7 @@ public static class CategoryEndpoints
             return Results.Created($"/api/categories/{category.Id}", result);
         });
 
-        group.MapPut("/{id}", async (int id, Category updatedCategory, LifePlannerDbContext db) =>
+        group.MapPut("/{id}", async (int id, Category updatedCategory, ICategoryRepository repo) =>
         {
             if (string.IsNullOrWhiteSpace(updatedCategory.Name))
             {
@@ -58,23 +54,22 @@ public static class CategoryEndpoints
                 });
             }
 
-            var category = await db.Categories.FindAsync(id);
+            var category = await repo.GetByIdAsync(id);
             if (category is null) return Results.NotFound();
 
             category.Name = updatedCategory.Name;
             category.Color = updatedCategory.Color;
             
-            await db.SaveChangesAsync();
+            await repo.UpdateAsync(category);
             return Results.NoContent();
         });
 
-        group.MapDelete("/{id}", async (int id, LifePlannerDbContext db) =>
+        group.MapDelete("/{id}", async (int id, ICategoryRepository repo) =>
         {
-            var category = await db.Categories.FindAsync(id);
+            var category = await repo.GetByIdAsync(id);
             if (category is null) return Results.NotFound();
 
-            db.Categories.Remove(category);
-            await db.SaveChangesAsync();
+            await repo.DeleteAsync(category);
             return Results.NoContent();
         });
     }
