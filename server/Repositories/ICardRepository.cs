@@ -6,4 +6,5 @@ public interface ICardRepository : IRepository<Card>
 {
     Task<IEnumerable<Card>> GetCardsByUserIdAsync(int userId);
     Task<Card?> GetCardWithCategoryByIdAsync(int id);
+    Task ReorderCardsAsync(IEnumerable<ReorderCardsDto> reorderedCards);
 }

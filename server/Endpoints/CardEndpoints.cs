@@ -1,7 +1,9 @@
 using LifePlanner.Api.Data;
 using LifePlanner.Api.Models;
 using LifePlanner.Api.Repositories;
+using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
+using System.Linq;
 
 namespace LifePlanner.Api.Endpoints;
 
@@ -72,6 +74,13 @@ public static class CardEndpoints
             await repo.DeleteAsync(card);
             return Results.NoContent();
         });
+
+        // Reorder cards endpoint
+        group.MapPost("/reorder", async (List<ReorderCardsDto> reordered, ICardRepository repo) =>
+        {
+            await repo.ReorderCardsAsync(reordered ?? new List<ReorderCardsDto>());
+            return Results.Ok();
+        }).WithTags("Cards");
 
         // --- List Item endpoints ---
 
@@ -158,6 +167,7 @@ public static class CardEndpoints
     private static CardDto ToDto(Card c) => new()
     {
         Id = c.Id,
+        Order = c.Order,
         Title = c.Title,
         Description = c.Description,
         ScheduledDate = c.ScheduledDate,

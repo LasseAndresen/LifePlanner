@@ -27,6 +27,7 @@ export interface ListItem {
 }
 
 export interface Card {
+  order?: number;
   id: number;
   title: string;
   description?: string;

@@ -2,7 +2,7 @@ import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Card } from '../../../../core/models/planner.models';
 import { TopicCardComponent } from '../topic-card/topic-card.component';
-import { DragDropModule, CdkDragDrop } from '@angular/cdk/drag-drop';
+import { DragDropModule, CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-drop';
 
 @Component({
   selector: 'app-card-sidebar',
@@ -13,7 +13,7 @@ import { DragDropModule, CdkDragDrop } from '@angular/cdk/drag-drop';
 
       <div class="sidebar-header">
         <div class="header-text">
-          <h2>Ideas &amp; Tasks</h2>
+          <h2>Ideas & Tasks</h2>
           <p class="subtitle">Drag tasks onto your calendar</p>
         </div>
         <button class="add-btn" (click)="addCardClicked.emit()" title="New card">
@@ -21,13 +21,15 @@ import { DragDropModule, CdkDragDrop } from '@angular/cdk/drag-drop';
         </button>
       </div>
 
-      <div class="card-list">
+      <div class="card-list" cdkDropList [cdkDropListData]="cards" (cdkDropListDropped)="onDrop($event)">
 
         @for (card of cards; track card.id) {
           <app-topic-card
+            cdkDrag
             [card]="card"
             (editClicked)="editCardClicked.emit(card)"
-            (itemDropped)="itemDropped.emit($event)">
+            (itemDropped)="itemDropped.emit($event)"
+          >
           </app-topic-card>
         } @empty {
           <div class="empty-state">
@@ -93,7 +95,7 @@ import { DragDropModule, CdkDragDrop } from '@angular/cdk/drag-drop';
       box-shadow: 0 4px 16px rgba(99, 102, 241, 0.35);
     }
     .add-btn:hover { opacity: 0.88; transform: scale(1.08); box-shadow: 0 6px 20px rgba(99, 102, 241, 0.5); }
-    .plus { color: white; font-size: 1.4rem; line-height: 1; margin-top: -1px; }
+    .plus { color: white; font-size: 1.4rem; line-height: 1;-top: -1px; }
 
     .card-list {
       flex: 1;
@@ -121,4 +123,24 @@ export class CardSidebarComponent {
   @Output() addCardClicked = new EventEmitter<void>();
   @Output() editCardClicked = new EventEmitter<Card>();
   @Output() itemDropped = new EventEmitter<CdkDragDrop<any>>();
+  /** Emits reordered cards after drag-and-drop */
+  @Output() cardsReordered = new EventEmitter<Card[]>();
+
+  /**
+   * Handles drop events from the cdkDropList.
+   * Reorders cards when dropped within the same container, otherwise forwards the event.
+   */
+  onDrop(event: CdkDragDrop<Card[]>): void {
+    if (event.previousContainer === event.container) {
+      // Reorder within the sidebar
+      const clonedCards = [...this.cards];
+      moveItemInArray(clonedCards, event.previousIndex, event.currentIndex);
+      this.cardsReordered.emit(clonedCards);
+    } else {
+      // Forward other drop events (e.g., onto calendar)
+      this.itemDropped.emit(event);
+    }
+  }
+
+
 }

@@ -229,4 +229,29 @@ export class CardService {
       cards.map(c => c.id === cardId ? { ...c, listItems: updater(c.listItems) } : c)
     );
   }
+  /**
+   * Update the order of cards after drag-and-drop.
+   */
+  reorderCards(sortedCards: Card[]): void {
+    // Map cards to their new index order
+    const updatedCards = sortedCards.map((c, index) => ({
+      ...c,
+      order: index
+    }));
+
+    // Update signal locally for immediate UI feedback
+    this.cardsSignal.set(updatedCards);
+
+    // Persist the new order to the server
+    const reorderDto = updatedCards.map(c => ({ id: c.id, order: c.order }));
+    this.http.post(`${environment.apiBaseUrl}/api/cards/reorder`, reorderDto)
+      .pipe(
+        tap(() => this.notifications.success('Card order saved.')),
+        catchError(err => {
+          this.notifications.error('Failed to save card order.');
+          return throwError(() => err);
+        })
+      )
+      .subscribe();
+  }
 }

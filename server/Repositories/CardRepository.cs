@@ -17,6 +17,7 @@ public class CardRepository : Repository<Card>, ICardRepository
             .Include(c => c.ListItems)
                 .ThenInclude(i => i.ScheduledInstances)
             .Where(c => c.UserId == userId)
+            .OrderBy(c => c.Order)
             .ToListAsync();
     }
 
@@ -28,4 +29,32 @@ public class CardRepository : Repository<Card>, ICardRepository
                 .ThenInclude(i => i.ScheduledInstances)
             .FirstOrDefaultAsync(c => c.Id == id);
     }
+
+    public override async Task AddAsync(Card card)
+    {
+        // Find the current max order for this user's cards
+        var maxOrder = await _dbSet
+            .Where(c => c.UserId == card.UserId)
+            .Select(c => (int?)c.Order)
+            .MaxAsync();
+
+        card.Order = (maxOrder ?? -1) + 1;
+
+        await base.AddAsync(card);
+    }
+
+    public async Task ReorderCardsAsync(IEnumerable<ReorderCardsDto> reorderedCards)
+    {
+        foreach (var rc in reorderedCards)
+        {
+            var card = await _dbSet.FirstOrDefaultAsync(c => c.Id == rc.Id);
+            if (card != null)
+            {
+                card.Order = rc.Order;
+            }
+        }
+        await _context.SaveChangesAsync();
+    }
 }
+
+

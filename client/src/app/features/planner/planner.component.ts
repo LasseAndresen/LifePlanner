@@ -17,10 +17,11 @@ import { CdkDragDrop, DragDropModule } from '@angular/cdk/drag-drop';
   template: `
     <div class="planner-layout" cdkDropListGroup>
       <app-card-sidebar
-        [cards]="cardService.unscheduledCards()"
-        (addCardClicked)="startCreateCard()"
-        (editCardClicked)="onEditCard($event)"
-        (itemDropped)="onItemDropped($event)">
+          [cards]="cardService.unscheduledCards()"
+          (addCardClicked)="startCreateCard()"
+          (editCardClicked)="onEditCard($event)"
+          (itemDropped)="onItemDropped($event)"
+          (cardsReordered)="onCardsReordered($event)">
       </app-card-sidebar>
 
       <app-calendar-grid
@@ -134,6 +135,11 @@ export class PlannerComponent {
         }
       }
     }
+  }
+
+  // Handle reordered cards from sidebar
+  onCardsReordered(cards: Card[]): void {
+    this.cardService.reorderCards(cards);
   }
 
   onInstanceToggled({ cardId, itemId, instance }: { cardId: number; itemId: number; instance: ScheduledInstance }): void {
