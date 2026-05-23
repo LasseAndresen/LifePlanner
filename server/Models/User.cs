@@ -11,6 +11,9 @@ public class User
     public DateTime? GoogleTokenExpiration { get; set; }
     
     public bool MicrosoftTodoConnected { get; set; }
+    public string? MicrosoftAccessToken { get; set; }
+    public string? MicrosoftRefreshToken { get; set; }
+    public DateTime? MicrosoftTokenExpiration { get; set; }
     public bool GoogleTasksConnected { get; set; }
     
     // Navigation properties

@@ -86,6 +86,44 @@ public static class IntegrationEndpoints
                 return Results.BadRequest(ex.Message);
             }
         });
+
+        group.MapGet("/connect/microsoft/login", (int state, IMicrosoftTodoService service) =>
+        {
+            return Results.Redirect(service.GetAuthorizationUrl(state));
+        });
+
+        group.MapGet("/microsoft/callback", async (string code, string state, IMicrosoftTodoService todoService, LifePlanner.Api.Data.LifePlannerDbContext context) =>
+        {
+            if (!int.TryParse(state, out var userId))
+            {
+                return Results.Redirect("http://localhost:4200/?integration=microsoft-error&message=Invalid+state+parameter");
+            }
+
+            var user = await context.Users.FindAsync(userId);
+            if (user == null)
+            {
+                return Results.Redirect("http://localhost:4200/?integration=microsoft-error&message=User+not+found");
+            }
+
+            try
+            {
+                var (accessToken, refreshToken, expiresIn) = await todoService.ExchangeCodeForTokensAsync(code);
+                
+                user.MicrosoftAccessToken = accessToken;
+                user.MicrosoftRefreshToken = refreshToken;
+                user.MicrosoftTokenExpiration = DateTime.UtcNow.AddSeconds(expiresIn);
+                user.MicrosoftTodoConnected = true;
+
+                context.Users.Update(user);
+                await context.SaveChangesAsync();
+
+                return Results.Redirect("http://localhost:4200/?integration=microsoft-success");
+            }
+            catch (Exception ex)
+            {
+                return Results.Redirect($"http://localhost:4200/?integration=microsoft-error&message={Uri.EscapeDataString(ex.Message)}");
+            }
+        });
     }
 }
 

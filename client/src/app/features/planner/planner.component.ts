@@ -11,6 +11,7 @@ import { UserService } from '../../core/services/user.service';
 import { Card, ListItem, ScheduledInstance } from '../../core/models/planner.models';
 import { CdkDragDrop, DragDropModule } from '@angular/cdk/drag-drop';
 import { NotificationService } from '../../core/services/notification.service';
+import { ActivatedRoute, Router } from '@angular/router';
 
 @Component({
   selector: 'app-planner',
@@ -76,6 +77,8 @@ export class PlannerComponent {
   public readonly categoryService = inject(CategoryService);
   private readonly userService = inject(UserService);
   private readonly notifications = inject(NotificationService);
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
 
   readonly calendarDayIds = computed(() => 
     this.calendarService.daysGrid().map(day => 'calendar-day-' + day.dateIso)
@@ -100,6 +103,37 @@ export class PlannerComponent {
       if (user) {
         this.cardService.loadCards(user.id);
         this.categoryService.loadCategories(user.id);
+      }
+    });
+
+    // Listen to query params for integration redirects
+    this.route.queryParams.subscribe(params => {
+      const integration = params['integration'];
+      if (integration === 'microsoft-success') {
+        this.notifications.success('Successfully connected to Microsoft To-Do!');
+        this.isIntegrationsOpen.set(true); // Re-open the integrations dialog to show connection status
+        
+        // Reload cards so that the sidebar instantly shows the newly imported Microsoft Tasks card
+        const user = this.userService.currentUser();
+        if (user) {
+          this.cardService.loadCards(user.id);
+        }
+
+        // Clean parameters from the URL
+        this.router.navigate([], {
+          queryParams: { integration: null },
+          queryParamsHandling: 'merge'
+        });
+      } else if (integration === 'microsoft-error') {
+        const message = params['message'] || 'An unknown error occurred.';
+        this.notifications.error(`Failed to connect Microsoft To-Do: ${message}`);
+        this.isIntegrationsOpen.set(true); // Open the dialog to let them try again
+
+        // Clean parameters from the URL
+        this.router.navigate([], {
+          queryParams: { integration: null, message: null },
+          queryParamsHandling: 'merge'
+        });
       }
     });
   }

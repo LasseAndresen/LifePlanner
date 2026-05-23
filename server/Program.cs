@@ -19,6 +19,7 @@ builder.Services.AddScoped<LifePlanner.Api.Repositories.IUserRepository, LifePla
 builder.Services.AddScoped<IGoogleCalendarService, GoogleCalendarService>();
 builder.Services.AddScoped<IGoogleTasksService, GoogleTasksService>();
 builder.Services.AddScoped<IIntegrationService, IntegrationService>();
+builder.Services.AddHttpClient<IMicrosoftTodoService, MicrosoftTodoService>();
 
 // Allow the Angular dev server to call this API
 builder.Services.AddCors(options =>

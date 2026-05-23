@@ -8,11 +8,13 @@ public class IntegrationService : IIntegrationService
 {
     private readonly LifePlannerDbContext _context;
     private readonly IGoogleTasksService _googleTasksService;
+    private readonly IMicrosoftTodoService _microsoftTodoService;
 
-    public IntegrationService(LifePlannerDbContext context, IGoogleTasksService googleTasksService)
+    public IntegrationService(LifePlannerDbContext context, IGoogleTasksService googleTasksService, IMicrosoftTodoService microsoftTodoService)
     {
         _context = context;
         _googleTasksService = googleTasksService;
+        _microsoftTodoService = microsoftTodoService;
     }
 
     private static readonly List<(string Id, string Text)> MockTodoTasks = new()
@@ -61,6 +63,9 @@ public class IntegrationService : IIntegrationService
         if (provider.Equals("MicrosoftTodo", StringComparison.OrdinalIgnoreCase))
         {
             user.MicrosoftTodoConnected = false;
+            user.MicrosoftAccessToken = null;
+            user.MicrosoftRefreshToken = null;
+            user.MicrosoftTokenExpiration = null;
             
             // Delete imported MS Todo cards
             var todoCards = await _context.Cards
@@ -239,6 +244,19 @@ public class IntegrationService : IIntegrationService
         if (user == null || !user.MicrosoftTodoConnected)
             throw new InvalidOperationException("Microsoft TODO is not connected.");
 
+        // Retrieve active access token (refreshes if expired)
+        var accessToken = await _microsoftTodoService.GetOrRefreshTokenAsync(user);
+
+        // Fetch lists and get the default Tasks list (commonly named "Tasks")
+        var lists = await _microsoftTodoService.GetTodoListsAsync(accessToken);
+        var defaultList = lists.FirstOrDefault(l => l.DisplayName.Equals("Tasks", StringComparison.OrdinalIgnoreCase)) ?? lists.FirstOrDefault();
+
+        if (defaultList == null)
+            throw new InvalidOperationException("No Microsoft To-Do list found.");
+
+        var apiTasks = await _microsoftTodoService.GetTasksAsync(accessToken, defaultList.Id);
+        var activeTasks = apiTasks.Where(t => t.Status != "completed").ToList();
+
         // Get category or create one
         var category = await _context.Categories
             .FirstOrDefaultAsync(c => c.UserId == userId && c.Name == "Microsoft TODO");
@@ -249,11 +267,12 @@ public class IntegrationService : IIntegrationService
             await _context.SaveChangesAsync();
         }
 
-        // Get or create the card
+        // Get or create the card (upgrade from 'ms-todo-default' if it exists)
         var card = await _context.Cards
             .Include(c => c.ListItems)
                 .ThenInclude(li => li.ScheduledInstances)
-            .FirstOrDefaultAsync(c => c.UserId == userId && c.IntegrationSource == "MicrosoftTodo" && c.IntegrationExternalId == "ms-todo-default");
+            .FirstOrDefaultAsync(c => c.UserId == userId && c.IntegrationSource == "MicrosoftTodo" && 
+                (c.IntegrationExternalId == defaultList.Id || c.IntegrationExternalId == "ms-todo-default"));
 
         if (card == null)
         {
@@ -265,10 +284,10 @@ public class IntegrationService : IIntegrationService
                 UserId = userId,
                 IsChecklist = true,
                 IntegrationSource = "MicrosoftTodo",
-                IntegrationExternalId = "ms-todo-default",
-                ListItems = MockTodoTasks.Select(task => new ListItem
+                IntegrationExternalId = defaultList.Id,
+                ListItems = activeTasks.Select(task => new ListItem
                 {
-                    Text = task.Text,
+                    Text = task.Title,
                     IsCompleted = false,
                     IntegrationExternalId = task.Id
                 }).ToList()
@@ -277,14 +296,31 @@ public class IntegrationService : IIntegrationService
         }
         else
         {
-            // Sync items (add missing ones, keep existing ones)
-            foreach (var task in MockTodoTasks)
+            // Upgrade external ID if still using the mock ID
+            if (card.IntegrationExternalId == "ms-todo-default")
+            {
+                card.IntegrationExternalId = defaultList.Id;
+            }
+
+            var activeTaskIds = activeTasks.Select(t => t.Id).ToHashSet();
+
+            // 1. Remove items that no longer exist in MS To-Do's active list
+            var itemsToRemove = card.ListItems
+                .Where(li => !string.IsNullOrEmpty(li.IntegrationExternalId) && !activeTaskIds.Contains(li.IntegrationExternalId))
+                .ToList();
+            foreach (var item in itemsToRemove)
+            {
+                card.ListItems.Remove(item);
+            }
+
+            // 2. Add new active items
+            foreach (var task in activeTasks)
             {
                 if (!card.ListItems.Any(li => li.IntegrationExternalId == task.Id))
                 {
                     card.ListItems.Add(new ListItem
                     {
-                        Text = task.Text,
+                        Text = task.Title,
                         IsCompleted = false,
                         IntegrationExternalId = task.Id
                     });

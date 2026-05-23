@@ -5,6 +5,7 @@ import { IntegrationService, GoogleTaskList, IntegrationStatus } from '../../../
 import { UserService } from '../../../../core/services/user.service';
 import { NotificationService } from '../../../../core/services/notification.service';
 import { CardService } from '../../../../core/services/card.service';
+import { environment } from '../../../../../environments/environment';
 
 @Component({
   selector: 'app-integrations-dialog',
@@ -631,27 +632,25 @@ export class IntegrationsDialogComponent implements OnInit {
       });
     } else {
       // Connect
-      if (provider === 'MicrosoftTodo') this.isConnectingTodo.set(true);
-      if (provider === 'GoogleTasks') this.isConnectingTasks.set(true);
-
-      this.integrations.connect(user.id, provider).subscribe({
-        next: (newStatus) => {
-          this.status.set(newStatus);
-          this.isConnectingTodo.set(false);
-          this.isConnectingTasks.set(false);
-          this.notifications.success(`Successfully connected to ${provider === 'MicrosoftTodo' ? 'Microsoft To-Do' : 'Google Tasks'}!`);
-          this.synced.emit(); // Reload sidebar cards
-
-          if (provider === 'GoogleTasks') {
+      if (provider === 'MicrosoftTodo') {
+        this.isConnectingTodo.set(true);
+        window.location.href = `${environment.apiBaseUrl}/api/integrations/connect/microsoft/login?state=${user.id}`;
+      } else if (provider === 'GoogleTasks') {
+        this.isConnectingTasks.set(true);
+        this.integrations.connect(user.id, provider).subscribe({
+          next: (newStatus) => {
+            this.status.set(newStatus);
+            this.isConnectingTasks.set(false);
+            this.notifications.success('Successfully connected to Google Tasks!');
+            this.synced.emit(); // Reload sidebar cards
             this.loadTasksLists();
+          },
+          error: () => {
+            this.isConnectingTasks.set(false);
+            this.notifications.error('Failed to connect to Google Tasks.');
           }
-        },
-        error: () => {
-          this.isConnectingTodo.set(false);
-          this.isConnectingTasks.set(false);
-          this.notifications.error(`Failed to connect to ${provider === 'MicrosoftTodo' ? 'Microsoft To-Do' : 'Google Tasks'}.`);
-        }
-      });
+        });
+      }
     }
   }
 

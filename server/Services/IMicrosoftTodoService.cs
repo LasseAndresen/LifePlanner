@@ -1,0 +1,15 @@
+using LifePlanner.Api.Models;
+
+namespace LifePlanner.Api.Services;
+
+public interface IMicrosoftTodoService
+{
+    string GetAuthorizationUrl(int userId);
+    Task<(string AccessToken, string RefreshToken, int ExpiresIn)> ExchangeCodeForTokensAsync(string code);
+    Task<string> GetOrRefreshTokenAsync(User user);
+    Task<List<MicrosoftTodoListDto>> GetTodoListsAsync(string accessToken);
+    Task<List<MicrosoftTodoTaskDto>> GetTasksAsync(string accessToken, string listId);
+}
+
+public record MicrosoftTodoListDto(string Id, string DisplayName);
+public record MicrosoftTodoTaskDto(string Id, string Title, string Status);
