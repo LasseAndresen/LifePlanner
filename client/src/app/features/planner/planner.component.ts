@@ -24,8 +24,6 @@ import { CdkDragDrop, DragDropModule } from '@angular/cdk/drag-drop';
       </app-card-sidebar>
 
       <app-calendar-grid
-        [scheduledItems]="calendarService.scheduledItems()"
-        [googleEvents]="calendarService.googleEvents()"
         (itemDropped)="onItemDropped($event)"
         (instanceToggled)="onInstanceToggled($event)"
         (instanceUnscheduled)="onInstanceUnscheduled($event)">
@@ -74,20 +72,6 @@ export class PlannerComponent {
       if (user) {
         this.cardService.loadCards(user.id);
         this.categoryService.loadCategories(user.id);
-        
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        
-        const dayOfWeek = today.getDay();
-        const diffToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-        
-        const start = new Date(today);
-        start.setDate(today.getDate() - diffToMonday); // Start of this week (Monday)
-        
-        const end = new Date(start);
-        end.setDate(end.getDate() + 7); // 7 days from Monday
-        
-        this.calendarService.loadGoogleEvents(user.id, start, end);
       }
     });
   }

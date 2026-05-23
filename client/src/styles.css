@@ -67,6 +67,11 @@ body {
   z-index: 2000 !important;
   pointer-events: none !important;
   overflow: hidden !important;
+  transition: none !important;
+}
+
+.cdk-drag-dragging {
+  transition: none !important;
 }
 
 .cdk-drag-placeholder {
@@ -86,11 +91,10 @@ body {
 }
 
 /* Performance optimization during drag */
-.cdk-drop-list-dragging .glass-panel {
+body:has(.cdk-drag-preview) .glass-panel {
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
-  /* Use a slightly more opaque background when blur is off for better contrast */
-  background: rgba(18, 18, 30, 0.9) !important;
+  background: rgba(18, 18, 26, 0.85) !important;
 }
 
 /* Premium Custom Scrollbar */

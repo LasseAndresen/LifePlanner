@@ -50,3 +50,14 @@ export interface GoogleCalendarEvent {
     date?: string;
   };
 }
+
+export interface DayColumn {
+  date: Date;
+  dateIso: string;
+  label: string;
+  items: { instance: ScheduledInstance; item: ListItem; card: Card }[];
+  googleEvents: GoogleCalendarEvent[];
+  isCurrentMonth: boolean;
+  isToday: boolean;
+}
+
