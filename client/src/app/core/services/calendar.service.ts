@@ -113,12 +113,19 @@ export class CalendarService {
     
     const days: DayColumn[] = [];
     const current = new Date(range.start);
+
+    const formatDateToLocalIso = (d: Date): string => {
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}T00:00:00`;
+    };
     
     while (current <= range.end) {
       const date = new Date(current);
       days.push({
         date,
-        dateIso: date.toISOString(),
+        dateIso: formatDateToLocalIso(date),
         label: date.toDateString(),
         items: [],
         googleEvents: [],
@@ -128,10 +135,20 @@ export class CalendarService {
       current.setDate(current.getDate() + 1);
     }
     
+    const parseToLocalDate = (dateString: string): Date => {
+      // Handle date-only strings (e.g. YYYY-MM-DD) safely across timezones
+      if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+        const [year, month, day] = dateString.split('-').map(Number);
+        return new Date(year, month - 1, day, 0, 0, 0, 0);
+      }
+      const parsed = new Date(dateString);
+      return isNaN(parsed.getTime()) ? new Date() : parsed;
+    };
+
     // Helper to find a DayColumn matching a date string
     const findDayColumn = (dateString: string | undefined): DayColumn | undefined => {
       if (!dateString) return undefined;
-      const date = new Date(dateString);
+      const date = parseToLocalDate(dateString);
       date.setHours(0, 0, 0, 0);
       const time = date.getTime();
       return days.find(d => {
