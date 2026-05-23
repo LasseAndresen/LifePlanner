@@ -11,7 +11,7 @@ public class User
     public DateTime? GoogleTokenExpiration { get; set; }
     
     public bool MicrosoftTodoConnected { get; set; }
-    public bool GoogleKeepConnected { get; set; }
+    public bool GoogleTasksConnected { get; set; }
     
     // Navigation properties
     public ICollection<Category> Categories { get; set; } = new List<Category>();

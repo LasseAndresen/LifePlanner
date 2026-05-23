@@ -37,8 +37,8 @@ import { NotificationService } from '../../../../core/services/notification.serv
               ✕
             </button>
           } @else {
-            <span class="integration-badge" [class.ms-todo]="card.integrationSource === 'MicrosoftTodo'" [class.keep]="card.integrationSource === 'GoogleKeep'">
-              {{ card.integrationSource === 'MicrosoftTodo' ? 'MS Todo' : 'Keep' }}
+            <span class="integration-badge" [class.ms-todo]="card.integrationSource === 'MicrosoftTodo'" [class.google-tasks]="card.integrationSource === 'GoogleTasks'">
+              {{ card.integrationSource === 'MicrosoftTodo' ? 'MS Todo' : 'Google Tasks' }}
             </span>
           }
         </div>
@@ -437,10 +437,10 @@ import { NotificationService } from '../../../../core/services/notification.serv
       color: #60a5fa;
       border: 1px solid rgba(37, 99, 235, 0.25);
     }
-    .integration-badge.keep {
-      background: rgba(245, 158, 11, 0.15);
-      color: #fbbf24;
-      border: 1px solid rgba(245, 158, 11, 0.25);
+    .integration-badge.google-tasks {
+      background: rgba(14, 165, 233, 0.15);
+      color: #38bdf8;
+      border: 1px solid rgba(14, 165, 233, 0.25);
     }
   `]
 })
@@ -485,7 +485,7 @@ export class TopicCardComponent {
     this.cardService.updateListItem(this.card.id, { ...item, isCompleted }).subscribe({
       next: () => {
         if (this.card.integrationSource) {
-          const providerName = this.card.integrationSource === 'MicrosoftTodo' ? 'Microsoft To-Do' : 'Google Keep';
+          const providerName = this.card.integrationSource === 'MicrosoftTodo' ? 'Microsoft To-Do' : 'Google Tasks';
           this.notifications.show(`Synced task status with ${providerName}!`, 'success');
         }
       }

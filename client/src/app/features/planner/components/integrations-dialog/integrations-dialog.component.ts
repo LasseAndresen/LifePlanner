@@ -1,7 +1,7 @@
 import { Component, EventEmitter, OnInit, Output, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { IntegrationService, KeepNote, IntegrationStatus } from '../../../../core/services/integration.service';
+import { IntegrationService, GoogleTaskList, IntegrationStatus } from '../../../../core/services/integration.service';
 import { UserService } from '../../../../core/services/user.service';
 import { NotificationService } from '../../../../core/services/notification.service';
 import { CardService } from '../../../../core/services/card.service';
@@ -67,17 +67,17 @@ import { CardService } from '../../../../core/services/card.service';
             </div>
           </section>
 
-          <!-- Google Keep Integration Card -->
-          <section class="integration-card keep-theme" [class.connected]="status().googleKeepConnected">
+          <!-- Google Tasks Integration Card -->
+          <section class="integration-card tasks-theme" [class.connected]="status().googleTasksConnected">
             <div class="card-left">
               <div class="logo-area">
-                <span class="logo-icon">💡</span>
+                <span class="logo-icon">✓</span>
               </div>
               <div class="details">
-                <h3>Google Keep Notes</h3>
-                <p>Select which Google Keep notes you want to import. Each note will appear as an independent read-only card in your sidebar, retaining its checklist items.</p>
+                <h3>Google Tasks</h3>
+                <p>Select which Google Tasks lists you want to import. Each list will appear as an independent card in your sidebar, retaining its checklist items.</p>
                 
-                @if (status().googleKeepConnected) {
+                @if (status().googleTasksConnected) {
                   <div class="sync-info-area">
                     <span class="badge badge-success">✓ Connected</span>
                   </div>
@@ -86,11 +86,11 @@ import { CardService } from '../../../../core/services/card.service';
             </div>
             
             <div class="card-right">
-              @if (status().googleKeepConnected) {
-                <button class="disconnect-btn" (click)="toggleConnection('GoogleKeep')">Disconnect</button>
+              @if (status().googleTasksConnected) {
+                <button class="disconnect-btn" (click)="toggleConnection('GoogleTasks')">Disconnect</button>
               } @else {
-                <button class="connect-btn" (click)="toggleConnection('GoogleKeep')" [disabled]="isConnectingKeep()">
-                  @if (isConnectingKeep()) {
+                <button class="connect-btn" (click)="toggleConnection('GoogleTasks')" [disabled]="isConnectingTasks()">
+                  @if (isConnectingTasks()) {
                     <span class="spinner"></span> Connecting...
                   } @else {
                     Connect
@@ -100,58 +100,58 @@ import { CardService } from '../../../../core/services/card.service';
             </div>
           </section>
 
-          <!-- Google Keep Import Selector Area -->
-          @if (status().googleKeepConnected) {
-            <section class="keep-selector-panel glass-panel">
+          <!-- Google Tasks Import Selector Area -->
+          @if (status().googleTasksConnected) {
+            <section class="tasks-selector-panel glass-panel">
               <div class="panel-header">
-                <h4>Select notes to import from Google Keep</h4>
-                <p class="panel-subtitle">Checked notes will sync to your sidebar. Unchecking removes them.</p>
+                <h4>Select lists to import from Google Tasks</h4>
+                <p class="panel-subtitle">Checked lists will sync to your sidebar. Unchecking removes them.</p>
               </div>
 
-              @if (isLoadingKeepNotes()) {
+              @if (isLoadingTasks()) {
                 <div class="loading-state">
                   <span class="spinner large"></span>
-                  <p>Fetching notes from Google Keep...</p>
+                  <p>Fetching lists from Google Tasks...</p>
                 </div>
               } @else {
                 <div class="notes-grid">
-                  @for (note of keepNotes(); track note.id) {
-                    <div class="note-item" [class.selected]="selectedKeepNoteIds().includes(note.id)" (click)="toggleNoteSelection(note.id)">
+                  @for (list of googleTaskLists(); track list.id) {
+                    <div class="note-item" [class.selected]="selectedTaskListIds().includes(list.id)" (click)="toggleTaskListSelection(list.id)">
                       <div class="note-checkbox-wrapper">
                         <input 
                           type="checkbox" 
-                          [checked]="selectedKeepNoteIds().includes(note.id)" 
-                          (click)="$event.stopPropagation(); toggleNoteSelection(note.id)" 
+                          [checked]="selectedTaskListIds().includes(list.id)" 
+                          (click)="$event.stopPropagation(); toggleTaskListSelection(list.id)" 
                           class="custom-checkbox" />
                       </div>
                       <div class="note-preview-content">
-                        <h5>{{ note.title }}</h5>
+                        <h5>{{ list.title }}</h5>
                         <ul class="preview-items">
-                          @for (item of note.items.slice(0, 3); track item) {
+                          @for (item of list.items.slice(0, 3); track item) {
                             <li>• {{ item }}</li>
                           }
-                          @if (note.items.length > 3) {
-                            <li class="more-items">+ {{ note.items.length - 3 }} more items</li>
+                          @if (list.items.length > 3) {
+                            <li class="more-items">+ {{ list.items.length - 3 }} more items</li>
                           }
                         </ul>
                       </div>
                     </div>
                   } @empty {
                     <div class="empty-notes">
-                      <p>No Keep notes found in your account.</p>
+                      <p>No Google Tasks lists found in your account.</p>
                     </div>
                   }
                 </div>
 
                 <div class="panel-actions">
                   <button 
-                    class="save-keep-btn" 
-                    (click)="saveKeepImports()" 
-                    [disabled]="isSavingKeepImports() || !isSelectionChanged()">
-                    @if (isSavingKeepImports()) {
+                    class="save-tasks-btn" 
+                    (click)="saveTaskListImports()" 
+                    [disabled]="isSavingTaskListImports() || !isSelectionChanged()">
+                    @if (isSavingTaskListImports()) {
                       <span class="spinner"></span> Saving...
                     } @else {
-                      Import & Sync Selected Notes
+                      Import & Sync Selected Lists
                     }
                   </button>
                 </div>
@@ -296,8 +296,8 @@ import { CardService } from '../../../../core/services/card.service';
       background: linear-gradient(135deg, #2563eb, #1e40af);
       color: white;
     }
-    .keep-theme .logo-area {
-      background: linear-gradient(135deg, #f59e0b, #d97706);
+    .tasks-theme .logo-area {
+      background: linear-gradient(135deg, #0ea5e9, #0284c7);
       color: white;
     }
 
@@ -393,8 +393,8 @@ import { CardService } from '../../../../core/services/card.service';
       border-color: rgba(239, 68, 68, 0.6);
     }
 
-    /* Google Keep Selection Panel */
-    .keep-selector-panel {
+    /* Google Tasks Selection Panel */
+    .tasks-selector-panel {
       padding: 1.25rem 1.5rem;
       background: rgba(255, 255, 255, 0.015);
       border-color: rgba(255, 255, 255, 0.08);
@@ -449,8 +449,8 @@ import { CardService } from '../../../../core/services/card.service';
       border-color: rgba(255, 255, 255, 0.1);
     }
     .note-item.selected {
-      background: rgba(245, 158, 11, 0.05);
-      border-color: rgba(245, 158, 11, 0.25);
+      background: rgba(14, 165, 233, 0.05);
+      border-color: rgba(14, 165, 233, 0.25);
     }
 
     .note-checkbox-wrapper {
@@ -458,7 +458,7 @@ import { CardService } from '../../../../core/services/card.service';
     }
     .custom-checkbox {
       cursor: pointer;
-      accent-color: #f59e0b;
+      accent-color: #0ea5e9;
       width: 15px;
       height: 15px;
     }
@@ -509,24 +509,24 @@ import { CardService } from '../../../../core/services/card.service';
       padding-top: 0.85rem;
     }
     
-    .save-keep-btn {
+    .save-tasks-btn {
       font-family: var(--font-family);
       font-size: 0.82rem;
       font-weight: 600;
       padding: 0.45rem 1rem;
       border-radius: var(--radius-sm);
       cursor: pointer;
-      background: linear-gradient(135deg, #f59e0b, #d97706);
+      background: linear-gradient(135deg, #0ea5e9, #0284c7);
       color: white;
       border: none;
-      box-shadow: 0 4px 12px rgba(245, 158, 11, 0.2);
+      box-shadow: 0 4px 12px rgba(14, 165, 233, 0.2);
       transition: all 0.2s;
     }
-    .save-keep-btn:hover:not(:disabled) {
+    .save-tasks-btn:hover:not(:disabled) {
       transform: translateY(-1px);
-      box-shadow: 0 6px 16px rgba(245, 158, 11, 0.35);
+      box-shadow: 0 6px 16px rgba(14, 165, 233, 0.35);
     }
-    .save-keep-btn:disabled {
+    .save-tasks-btn:disabled {
       opacity: 0.45;
       cursor: not-allowed;
       box-shadow: none;
@@ -575,19 +575,19 @@ export class IntegrationsDialogComponent implements OnInit {
   private readonly notifications = inject(NotificationService);
   private readonly cardService = inject(CardService);
 
-  protected readonly status = signal<IntegrationStatus>({ microsoftTodoConnected: false, googleKeepConnected: false });
+  protected readonly status = signal<IntegrationStatus>({ microsoftTodoConnected: false, googleTasksConnected: false });
   
   // Microsoft TODO state
   protected readonly isConnectingTodo = signal(false);
   protected readonly isSyncingTodo = signal(false);
 
-  // Google Keep state
-  protected readonly isConnectingKeep = signal(false);
-  protected readonly isLoadingKeepNotes = signal(false);
-  protected readonly keepNotes = signal<KeepNote[]>([]);
-  protected readonly selectedKeepNoteIds = signal<string[]>([]);
+  // Google Tasks state
+  protected readonly isConnectingTasks = signal(false);
+  protected readonly isLoadingTasks = signal(false);
+  protected readonly googleTaskLists = signal<GoogleTaskList[]>([]);
+  protected readonly selectedTaskListIds = signal<string[]>([]);
   protected readonly originallySelectedIds = signal<string[]>([]);
-  protected readonly isSavingKeepImports = signal(false);
+  protected readonly isSavingTaskListImports = signal(false);
 
   ngOnInit(): void {
     this.loadStatus();
@@ -600,56 +600,56 @@ export class IntegrationsDialogComponent implements OnInit {
     this.integrations.getStatus(user.id).subscribe({
       next: (status) => {
         this.status.set(status);
-        if (status.googleKeepConnected) {
-          this.loadKeepNotes();
+        if (status.googleTasksConnected) {
+          this.loadTasksLists();
         }
       },
       error: () => this.notifications.error('Failed to load integrations status.')
     });
   }
 
-  protected toggleConnection(provider: 'MicrosoftTodo' | 'GoogleKeep'): void {
+  protected toggleConnection(provider: 'MicrosoftTodo' | 'GoogleTasks'): void {
     const user = this.userService.currentUser();
     if (!user) return;
 
-    const isCurrentlyConnected = provider === 'MicrosoftTodo' ? this.status().microsoftTodoConnected : this.status().googleKeepConnected;
+    const isCurrentlyConnected = provider === 'MicrosoftTodo' ? this.status().microsoftTodoConnected : this.status().googleTasksConnected;
 
     if (isCurrentlyConnected) {
       // Disconnect
       this.integrations.disconnect(user.id, provider).subscribe({
         next: (newStatus) => {
           this.status.set(newStatus);
-          this.notifications.success(`${provider === 'MicrosoftTodo' ? 'Microsoft To-Do' : 'Google Keep'} disconnected successfully.`);
+          this.notifications.success(`${provider === 'MicrosoftTodo' ? 'Microsoft To-Do' : 'Google Tasks'} disconnected successfully.`);
           this.synced.emit(); // Reload sidebar cards
-          if (provider === 'GoogleKeep') {
-            this.keepNotes.set([]);
-            this.selectedKeepNoteIds.set([]);
+          if (provider === 'GoogleTasks') {
+            this.googleTaskLists.set([]);
+            this.selectedTaskListIds.set([]);
             this.originallySelectedIds.set([]);
           }
         },
-        error: () => this.notifications.error(`Could not disconnect ${provider === 'MicrosoftTodo' ? 'Microsoft To-Do' : 'Google Keep'}.`)
+        error: () => this.notifications.error(`Could not disconnect ${provider === 'MicrosoftTodo' ? 'Microsoft To-Do' : 'Google Tasks'}.`)
       });
     } else {
       // Connect
       if (provider === 'MicrosoftTodo') this.isConnectingTodo.set(true);
-      if (provider === 'GoogleKeep') this.isConnectingKeep.set(true);
+      if (provider === 'GoogleTasks') this.isConnectingTasks.set(true);
 
       this.integrations.connect(user.id, provider).subscribe({
         next: (newStatus) => {
           this.status.set(newStatus);
           this.isConnectingTodo.set(false);
-          this.isConnectingKeep.set(false);
-          this.notifications.success(`Successfully connected to ${provider === 'MicrosoftTodo' ? 'Microsoft To-Do' : 'Google Keep'}!`);
+          this.isConnectingTasks.set(false);
+          this.notifications.success(`Successfully connected to ${provider === 'MicrosoftTodo' ? 'Microsoft To-Do' : 'Google Tasks'}!`);
           this.synced.emit(); // Reload sidebar cards
 
-          if (provider === 'GoogleKeep') {
-            this.loadKeepNotes();
+          if (provider === 'GoogleTasks') {
+            this.loadTasksLists();
           }
         },
         error: () => {
           this.isConnectingTodo.set(false);
-          this.isConnectingKeep.set(false);
-          this.notifications.error(`Failed to connect to ${provider === 'MicrosoftTodo' ? 'Microsoft To-Do' : 'Google Keep'}.`);
+          this.isConnectingTasks.set(false);
+          this.notifications.error(`Failed to connect to ${provider === 'MicrosoftTodo' ? 'Microsoft To-Do' : 'Google Tasks'}.`);
         }
       });
     }
@@ -674,58 +674,58 @@ export class IntegrationsDialogComponent implements OnInit {
     });
   }
 
-  // Google Keep Actions
-  private loadKeepNotes(): void {
+  // Google Tasks Actions
+  private loadTasksLists(): void {
     const user = this.userService.currentUser();
     if (!user) return;
 
-    this.isLoadingKeepNotes.set(true);
-    this.integrations.getKeepNotes(user.id).subscribe({
-      next: (notes) => {
-        this.keepNotes.set(notes);
-        const imported = notes.filter(n => n.isImported).map(n => n.id);
-        this.selectedKeepNoteIds.set(imported);
+    this.isLoadingTasks.set(true);
+    this.integrations.getGoogleTaskLists(user.id).subscribe({
+      next: (lists) => {
+        this.googleTaskLists.set(lists);
+        const imported = lists.filter(l => l.isImported).map(l => l.id);
+        this.selectedTaskListIds.set(imported);
         this.originallySelectedIds.set([...imported]);
-        this.isLoadingKeepNotes.set(false);
+        this.isLoadingTasks.set(false);
       },
       error: () => {
-        this.isLoadingKeepNotes.set(false);
-        this.notifications.error('Failed to load Keep notes.');
+        this.isLoadingTasks.set(false);
+        this.notifications.error('Failed to load Google Tasks lists.');
       }
     });
   }
 
-  protected toggleNoteSelection(noteId: string): void {
-    const current = this.selectedKeepNoteIds();
-    if (current.includes(noteId)) {
-      this.selectedKeepNoteIds.set(current.filter(id => id !== noteId));
+  protected toggleTaskListSelection(listId: string): void {
+    const current = this.selectedTaskListIds();
+    if (current.includes(listId)) {
+      this.selectedTaskListIds.set(current.filter(id => id !== listId));
     } else {
-      this.selectedKeepNoteIds.set([...current, noteId]);
+      this.selectedTaskListIds.set([...current, listId]);
     }
   }
 
   protected isSelectionChanged(): boolean {
-    const cur = this.selectedKeepNoteIds().sort();
+    const cur = this.selectedTaskListIds().sort();
     const orig = this.originallySelectedIds().sort();
     if (cur.length !== orig.length) return true;
     return cur.some((v, i) => v !== orig[i]);
   }
 
-  protected saveKeepImports(): void {
+  protected saveTaskListImports(): void {
     const user = this.userService.currentUser();
     if (!user) return;
 
-    this.isSavingKeepImports.set(true);
-    this.integrations.importKeepNotes(user.id, this.selectedKeepNoteIds()).subscribe({
+    this.isSavingTaskListImports.set(true);
+    this.integrations.importGoogleTaskLists(user.id, this.selectedTaskListIds()).subscribe({
       next: () => {
-        this.isSavingKeepImports.set(false);
-        this.originallySelectedIds.set([...this.selectedKeepNoteIds()]);
-        this.notifications.success('Google Keep cards updated.');
+        this.isSavingTaskListImports.set(false);
+        this.originallySelectedIds.set([...this.selectedTaskListIds()]);
+        this.notifications.success('Google Tasks cards updated.');
         this.synced.emit();
       },
       error: () => {
-        this.isSavingKeepImports.set(false);
-        this.notifications.error('Failed to save imported notes.');
+        this.isSavingTaskListImports.set(false);
+        this.notifications.error('Failed to save imported lists.');
       }
     });
   }

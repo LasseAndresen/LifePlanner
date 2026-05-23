@@ -7,39 +7,13 @@ namespace LifePlanner.Api.Services;
 public class IntegrationService : IIntegrationService
 {
     private readonly LifePlannerDbContext _context;
+    private readonly IGoogleTasksService _googleTasksService;
 
-    public IntegrationService(LifePlannerDbContext context)
+    public IntegrationService(LifePlannerDbContext context, IGoogleTasksService googleTasksService)
     {
         _context = context;
+        _googleTasksService = googleTasksService;
     }
-
-    private static readonly List<KeepNoteDto> MockKeepNotes = new()
-    {
-        new KeepNoteDto
-        {
-            Id = "keep-1",
-            Title = "💡 Side Project Ideas",
-            Items = new List<string> { "Research Angular 19 signals", "Set up SQLite database with migrations", "Design landing page mockup" }
-        },
-        new KeepNoteDto
-        {
-            Id = "keep-2",
-            Title = "🛒 Weekly Groceries",
-            Items = new List<string> { "Fresh organic bananas", "Almond milk (unsweetened)", "Sourdough bread", "Greek yogurt", "Avocado" }
-        },
-        new KeepNoteDto
-        {
-            Id = "keep-3",
-            Title = "🏠 Weekend Home Improvement",
-            Items = new List<string> { "Repaint the guest room", "Fix the squeaky kitchen drawer", "Organize garage shelves", "Water lawn & plants" }
-        },
-        new KeepNoteDto
-        {
-            Id = "keep-4",
-            Title = "🎒 Gym Packing Checklist",
-            Items = new List<string> { "Clean workout clothes", "Insulated water bottle", "Microfiber towel", "Lock for locker" }
-        }
-    };
 
     private static readonly List<(string Id, string Text)> MockTodoTasks = new()
     {
@@ -55,7 +29,7 @@ public class IntegrationService : IIntegrationService
         var user = await _context.Users.FindAsync(userId);
         if (user == null) return new IntegrationStatusDto(false, false);
 
-        return new IntegrationStatusDto(user.MicrosoftTodoConnected, user.GoogleKeepConnected);
+        return new IntegrationStatusDto(user.MicrosoftTodoConnected, user.GoogleTasksConnected);
     }
 
     public async Task<IntegrationStatusDto> ConnectAsync(int userId, string provider)
@@ -70,13 +44,13 @@ public class IntegrationService : IIntegrationService
             // Automatically sync on connection
             await SyncMicrosoftTodoAsync(userId);
         }
-        else if (provider.Equals("GoogleKeep", StringComparison.OrdinalIgnoreCase))
+        else if (provider.Equals("GoogleTasks", StringComparison.OrdinalIgnoreCase))
         {
-            user.GoogleKeepConnected = true;
+            user.GoogleTasksConnected = true;
             await _context.SaveChangesAsync();
         }
 
-        return new IntegrationStatusDto(user.MicrosoftTodoConnected, user.GoogleKeepConnected);
+        return new IntegrationStatusDto(user.MicrosoftTodoConnected, user.GoogleTasksConnected);
     }
 
     public async Task<IntegrationStatusDto> DisconnectAsync(int userId, string provider)
@@ -96,92 +70,113 @@ public class IntegrationService : IIntegrationService
             
             await _context.SaveChangesAsync();
         }
-        else if (provider.Equals("GoogleKeep", StringComparison.OrdinalIgnoreCase))
+        else if (provider.Equals("GoogleTasks", StringComparison.OrdinalIgnoreCase))
         {
-            user.GoogleKeepConnected = false;
+            user.GoogleTasksConnected = false;
 
-            // Delete imported Google Keep cards
+            // Delete imported Google Tasks cards
             var keepCards = await _context.Cards
-                .Where(c => c.UserId == userId && c.IntegrationSource == "GoogleKeep")
+                .Where(c => c.UserId == userId && c.IntegrationSource == "GoogleTasks")
                 .ToListAsync();
             _context.Cards.RemoveRange(keepCards);
 
             await _context.SaveChangesAsync();
         }
 
-        return new IntegrationStatusDto(user.MicrosoftTodoConnected, user.GoogleKeepConnected);
+        return new IntegrationStatusDto(user.MicrosoftTodoConnected, user.GoogleTasksConnected);
     }
 
-    public async Task<List<KeepNoteDto>> GetKeepNotesAsync(int userId)
+    public async Task<List<GoogleTaskListDto>> GetGoogleTaskListsAsync(int userId)
     {
         var user = await _context.Users.FindAsync(userId);
-        if (user == null || !user.GoogleKeepConnected)
-            throw new InvalidOperationException("Google Keep is not connected.");
+        if (user == null || !user.GoogleTasksConnected)
+            throw new InvalidOperationException("Google Tasks is not connected.");
 
         // Check which ones are already imported
         var importedIds = await _context.Cards
-            .Where(c => c.UserId == userId && c.IntegrationSource == "GoogleKeep")
+            .Where(c => c.UserId == userId && c.IntegrationSource == "GoogleTasks")
             .Select(c => c.IntegrationExternalId)
             .ToListAsync();
 
-        return MockKeepNotes.Select(note => new KeepNoteDto
+        var taskLists = await _googleTasksService.GetTaskListsAsync(user);
+        
+        var tasksQueries = taskLists.Select(async list =>
         {
-            Id = note.Id,
-            Title = note.Title,
-            Items = note.Items,
-            IsImported = importedIds.Contains(note.Id)
-        }).ToList();
+            var tasks = await _googleTasksService.GetTasksAsync(user, list.Id);
+            var activeTasks = tasks
+                .Where(t => t.Status != "completed" && !string.IsNullOrEmpty(t.Title))
+                .Select(t => t.Title)
+                .ToList();
+
+            return new GoogleTaskListDto
+            {
+                Id = list.Id,
+                Title = list.Title,
+                Items = activeTasks,
+                IsImported = importedIds.Contains(list.Id)
+            };
+        });
+
+        var results = await Task.WhenAll(tasksQueries);
+        return results.ToList();
     }
 
-    public async Task<List<CardDto>> ImportKeepNotesAsync(int userId, List<string> externalIds)
+    public async Task<List<CardDto>> ImportGoogleTaskListsAsync(int userId, List<string> externalIds)
     {
         var user = await _context.Users.FindAsync(userId);
-        if (user == null || !user.GoogleKeepConnected)
-            throw new InvalidOperationException("Google Keep is not connected.");
+        if (user == null || !user.GoogleTasksConnected)
+            throw new InvalidOperationException("Google Tasks is not connected.");
 
         // Get category or create one
         var category = await _context.Categories
-            .FirstOrDefaultAsync(c => c.UserId == userId && c.Name == "Google Keep");
+            .FirstOrDefaultAsync(c => c.UserId == userId && c.Name == "Google Tasks");
         if (category == null)
         {
-            category = new Category { Name = "Google Keep", Color = "#f59e0b", UserId = userId };
+            category = new Category { Name = "Google Tasks", Color = "#2563eb", UserId = userId };
             _context.Categories.Add(category);
             await _context.SaveChangesAsync();
         }
 
         // 1. Remove cards that are no longer selected
         var cardsToRemove = await _context.Cards
-            .Where(c => c.UserId == userId && c.IntegrationSource == "GoogleKeep" && !externalIds.Contains(c.IntegrationExternalId!))
+            .Where(c => c.UserId == userId && c.IntegrationSource == "GoogleTasks" && !externalIds.Contains(c.IntegrationExternalId!))
             .ToListAsync();
         _context.Cards.RemoveRange(cardsToRemove);
 
         // 2. Add or update selected cards
+        var allTaskLists = await _googleTasksService.GetTaskListsAsync(user);
+
         foreach (var externalId in externalIds)
         {
             var existingCard = await _context.Cards
                 .Include(c => c.ListItems)
-                .FirstOrDefaultAsync(c => c.UserId == userId && c.IntegrationSource == "GoogleKeep" && c.IntegrationExternalId == externalId);
+                .FirstOrDefaultAsync(c => c.UserId == userId && c.IntegrationSource == "GoogleTasks" && c.IntegrationExternalId == externalId);
 
-            var noteSource = MockKeepNotes.FirstOrDefault(n => n.Id == externalId);
-            if (noteSource == null) continue;
+            var listDetails = allTaskLists.FirstOrDefault(l => l.Id == externalId);
+            var listTitle = listDetails?.Title ?? "Google Tasks List";
+
+            var googleTasks = await _googleTasksService.GetTasksAsync(user, externalId);
+            var activeAndRecentTasks = googleTasks
+                .Where(t => !string.IsNullOrEmpty(t.Title) && t.Deleted != true && t.Hidden != true)
+                .ToList();
 
             if (existingCard == null)
             {
                 // Create new card
                 var newCard = new Card
                 {
-                    Title = noteSource.Title,
-                    Description = "Synced from Google Keep",
+                    Title = listTitle,
+                    Description = "Synced from Google Tasks",
                     CategoryId = category.Id,
                     UserId = userId,
                     IsChecklist = true,
-                    IntegrationSource = "GoogleKeep",
+                    IntegrationSource = "GoogleTasks",
                     IntegrationExternalId = externalId,
-                    ListItems = noteSource.Items.Select(text => new ListItem
+                    ListItems = activeAndRecentTasks.Select(task => new ListItem
                     {
-                        Text = text,
-                        IsCompleted = false,
-                        IntegrationExternalId = $"{externalId}-{text.GetHashCode()}"
+                        Text = task.Title,
+                        IsCompleted = task.Status == "completed",
+                        IntegrationExternalId = task.Id
                     }).ToList()
                 };
                 _context.Cards.Add(newCard);
@@ -189,19 +184,37 @@ public class IntegrationService : IIntegrationService
             else
             {
                 // Update title if changed
-                existingCard.Title = noteSource.Title;
-                // Add items that are missing
-                foreach (var itemText in noteSource.Items)
+                existingCard.Title = listTitle;
+
+                // 1. Remove items that no longer exist in Google Tasks
+                var googleTaskIds = activeAndRecentTasks.Select(t => t.Id).ToHashSet();
+                var itemsToRemove = existingCard.ListItems
+                    .Where(li => !googleTaskIds.Contains(li.IntegrationExternalId!))
+                    .ToList();
+                foreach (var item in itemsToRemove)
                 {
-                    var itemExtId = $"{externalId}-{itemText.GetHashCode()}";
-                    if (!existingCard.ListItems.Any(li => li.IntegrationExternalId == itemExtId))
+                    existingCard.ListItems.Remove(item);
+                }
+
+                // 2. Add or update items
+                foreach (var task in activeAndRecentTasks)
+                {
+                    var existingItem = existingCard.ListItems.FirstOrDefault(li => li.IntegrationExternalId == task.Id);
+                    var isTaskCompleted = task.Status == "completed";
+
+                    if (existingItem == null)
                     {
                         existingCard.ListItems.Add(new ListItem
                         {
-                            Text = itemText,
-                            IsCompleted = false,
-                            IntegrationExternalId = itemExtId
+                            Text = task.Title,
+                            IsCompleted = isTaskCompleted,
+                            IntegrationExternalId = task.Id
                         });
+                    }
+                    else
+                    {
+                        existingItem.Text = task.Title;
+                        existingItem.IsCompleted = isTaskCompleted;
                     }
                 }
             }
@@ -209,12 +222,12 @@ public class IntegrationService : IIntegrationService
 
         await _context.SaveChangesAsync();
 
-        // Return all updated Google Keep cards
+        // Return all updated Google Tasks cards
         var keepCards = await _context.Cards
             .Include(c => c.Category)
             .Include(c => c.ListItems)
                 .ThenInclude(li => li.ScheduledInstances)
-            .Where(c => c.UserId == userId && c.IntegrationSource == "GoogleKeep")
+            .Where(c => c.UserId == userId && c.IntegrationSource == "GoogleTasks")
             .ToListAsync();
 
         return keepCards.Select(ToDto).ToList();

@@ -48,12 +48,12 @@ public static class IntegrationEndpoints
             }
         });
 
-        group.MapGet("/keep-notes/{userId:int}", async (int userId, IIntegrationService service) =>
+        group.MapGet("/google-tasks/lists/{userId:int}", async (int userId, IIntegrationService service) =>
         {
             try
             {
-                var notes = await service.GetKeepNotesAsync(userId);
-                return Results.Ok(notes);
+                var lists = await service.GetGoogleTaskListsAsync(userId);
+                return Results.Ok(lists);
             }
             catch (Exception ex)
             {
@@ -61,11 +61,11 @@ public static class IntegrationEndpoints
             }
         });
 
-        group.MapPost("/keep-notes/import/{userId:int}", async (int userId, ImportKeepNotesRequest request, IIntegrationService service) =>
+        group.MapPost("/google-tasks/import/{userId:int}", async (int userId, ImportGoogleTasksRequest request, IIntegrationService service) =>
         {
             try
             {
-                var cards = await service.ImportKeepNotesAsync(userId, request.ExternalIds);
+                var cards = await service.ImportGoogleTaskListsAsync(userId, request.ExternalIds);
                 return Results.Ok(cards);
             }
             catch (Exception ex)
@@ -90,4 +90,4 @@ public static class IntegrationEndpoints
 }
 
 public record ConnectRequest(string Provider);
-public record ImportKeepNotesRequest(List<string> ExternalIds);
+public record ImportGoogleTasksRequest(List<string> ExternalIds);

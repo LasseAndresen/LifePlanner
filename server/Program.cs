@@ -17,6 +17,7 @@ builder.Services.AddScoped<LifePlanner.Api.Repositories.ICategoryRepository, Lif
 builder.Services.AddScoped<LifePlanner.Api.Repositories.IUserRepository, LifePlanner.Api.Repositories.UserRepository>();
 
 builder.Services.AddScoped<IGoogleCalendarService, GoogleCalendarService>();
+builder.Services.AddScoped<IGoogleTasksService, GoogleTasksService>();
 builder.Services.AddScoped<IIntegrationService, IntegrationService>();
 
 // Allow the Angular dev server to call this API

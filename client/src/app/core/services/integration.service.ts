@@ -6,10 +6,10 @@ import { environment } from '../../../environments/environment';
 
 export interface IntegrationStatus {
   microsoftTodoConnected: boolean;
-  googleKeepConnected: boolean;
+  googleTasksConnected: boolean;
 }
 
-export interface KeepNote {
+export interface GoogleTaskList {
   id: string;
   title: string;
   items: string[];
@@ -34,12 +34,12 @@ export class IntegrationService {
     return this.http.post<IntegrationStatus>(`${environment.apiBaseUrl}/api/integrations/disconnect/${userId}`, { provider });
   }
 
-  getKeepNotes(userId: number): Observable<KeepNote[]> {
-    return this.http.get<KeepNote[]>(`${environment.apiBaseUrl}/api/integrations/keep-notes/${userId}`);
+  getGoogleTaskLists(userId: number): Observable<GoogleTaskList[]> {
+    return this.http.get<GoogleTaskList[]>(`${environment.apiBaseUrl}/api/integrations/google-tasks/lists/${userId}`);
   }
 
-  importKeepNotes(userId: number, externalIds: string[]): Observable<Card[]> {
-    return this.http.post<Card[]>(`${environment.apiBaseUrl}/api/integrations/keep-notes/import/${userId}`, { externalIds });
+  importGoogleTaskLists(userId: number, externalIds: string[]): Observable<Card[]> {
+    return this.http.post<Card[]>(`${environment.apiBaseUrl}/api/integrations/google-tasks/import/${userId}`, { externalIds });
   }
 
   syncTodo(userId: number): Observable<Card> {

@@ -8,17 +8,17 @@ public interface IIntegrationService
     Task<IntegrationStatusDto> ConnectAsync(int userId, string provider);
     Task<IntegrationStatusDto> DisconnectAsync(int userId, string provider);
     
-    // Google Keep specific
-    Task<List<KeepNoteDto>> GetKeepNotesAsync(int userId);
-    Task<List<CardDto>> ImportKeepNotesAsync(int userId, List<string> externalIds);
+    // Google Tasks specific
+    Task<List<GoogleTaskListDto>> GetGoogleTaskListsAsync(int userId);
+    Task<List<CardDto>> ImportGoogleTaskListsAsync(int userId, List<string> externalIds);
     
     // Microsoft TODO specific
     Task<CardDto> SyncMicrosoftTodoAsync(int userId);
 }
 
-public record IntegrationStatusDto(bool MicrosoftTodoConnected, bool GoogleKeepConnected);
+public record IntegrationStatusDto(bool MicrosoftTodoConnected, bool GoogleTasksConnected);
 
-public class KeepNoteDto
+public class GoogleTaskListDto
 {
     public string Id { get; set; } = string.Empty;
     public string Title { get; set; } = string.Empty;
