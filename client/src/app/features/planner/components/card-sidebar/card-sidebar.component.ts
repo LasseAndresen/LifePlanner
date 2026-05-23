@@ -16,9 +16,14 @@ import { DragDropModule, CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-
           <h2>Ideas & Tasks</h2>
           <p class="subtitle">Drag tasks onto your calendar</p>
         </div>
-        <button class="add-btn" (click)="addCardClicked.emit()" title="New card">
-          <span class="plus">+</span>
-        </button>
+        <div class="header-actions">
+          <button class="integrations-btn" (click)="integrationsClicked.emit()" title="Manage integrations">
+            <span class="plug-icon">🔌</span>
+          </button>
+          <button class="add-btn" (click)="addCardClicked.emit()" title="New card">
+            <span class="plus">+</span>
+          </button>
+        </div>
       </div>
 
       <div class="card-list" cdkDropList [cdkDropListData]="cards" (cdkDropListDropped)="onDrop($event)">
@@ -27,6 +32,7 @@ import { DragDropModule, CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-
           <app-topic-card
             cdkDrag
             [card]="card"
+            [connectedTo]="connectedTo"
             (editClicked)="editCardClicked.emit(card)"
             (itemDropped)="itemDropped.emit($event)"
           >
@@ -80,6 +86,34 @@ import { DragDropModule, CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-
       font-size: 0.82rem;
       color: var(--text-muted);
     }
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      flex-shrink: 0;
+    }
+    .integrations-btn {
+      flex-shrink: 0;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: var(--bg-glass);
+      border: 1px solid var(--border-glass);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s, transform 0.15s, border-color 0.15s;
+    }
+    .integrations-btn:hover {
+      background: var(--bg-glass-hover);
+      border-color: var(--border-glass-strong);
+      transform: scale(1.08);
+    }
+    .plug-icon {
+      font-size: 1rem;
+      line-height: 1;
+    }
     .add-btn {
       flex-shrink: 0;
       width: 36px;
@@ -120,8 +154,10 @@ import { DragDropModule, CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-
 })
 export class CardSidebarComponent {
   @Input({ required: true }) cards: Card[] = [];
+  @Input() connectedTo: string[] = [];
   @Output() addCardClicked = new EventEmitter<void>();
   @Output() editCardClicked = new EventEmitter<Card>();
+  @Output() integrationsClicked = new EventEmitter<void>();
   @Output() itemDropped = new EventEmitter<CdkDragDrop<any>>();
   /** Emits reordered cards after drag-and-drop */
   @Output() cardsReordered = new EventEmitter<Card[]>();

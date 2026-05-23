@@ -23,6 +23,7 @@ export interface ListItem {
   text: string;
   isCompleted: boolean;
   cardId: number;
+  integrationExternalId?: string;
   scheduledInstances: ScheduledInstance[];
 }
 
@@ -36,6 +37,8 @@ export interface Card {
   listItems: ListItem[];
   categoryId: number;
   userId: number;
+  integrationSource?: string;
+  integrationExternalId?: string;
   category?: Category;   // Populated when the backend includes the navigation property
 }
 

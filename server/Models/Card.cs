@@ -12,6 +12,9 @@ public class Card
     public bool IsChecklist { get; set; }
     public ICollection<ListItem> ListItems { get; set; } = new List<ListItem>();
     
+    public string? IntegrationSource { get; set; }
+    public string? IntegrationExternalId { get; set; }
+    
     // Foreign Keys
     public int CategoryId { get; set; }
     public Category? Category { get; set; }

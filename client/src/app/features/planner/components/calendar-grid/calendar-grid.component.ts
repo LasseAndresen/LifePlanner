@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Output, inject } from '@angular/core';
+import { Component, EventEmitter, Input, Output, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Card, ListItem, ScheduledInstance, GoogleCalendarEvent, DayColumn } from '../../../../core/models/planner.models';
 import { DragDropModule, CdkDragDrop } from '@angular/cdk/drag-drop';
@@ -64,6 +64,7 @@ import { CalendarService } from '../../../../core/services/calendar.service';
                 cdkDropList
                 [id]="'calendar-day-' + day.dateIso"
                 [cdkDropListData]="day.items"
+                [cdkDropListConnectedTo]="connectedTo"
                 (cdkDropListDropped)="onDrop($event)">
                 
                 <!-- Google Calendar Events (Read Only) -->
@@ -98,6 +99,11 @@ import { CalendarService } from '../../../../core/services/calendar.service';
                       </button>
                       <h4 [class.completed]="entry.instance.isCompleted" [title]="entry.item.text">{{ entry.item.text }}</h4>
                       <div class="card-actions">
+                        @if (entry.card.integrationSource) {
+                          <span class="integration-source-badge" [class.ms-todo]="entry.card.integrationSource === 'MicrosoftTodo'" [class.keep]="entry.card.integrationSource === 'GoogleKeep'">
+                            {{ entry.card.integrationSource === 'MicrosoftTodo' ? 'MS Todo' : 'Keep' }}
+                          </span>
+                        }
                         <span class="parent-card-badge" [title]="entry.card.title">{{ entry.card.title }}</span>
                         <button
                           class="delete-btn"
@@ -152,6 +158,7 @@ import { CalendarService } from '../../../../core/services/calendar.service';
                   cdkDropList
                   [id]="'calendar-day-' + day.dateIso"
                   [cdkDropListData]="day.items"
+                  [cdkDropListConnectedTo]="connectedTo"
                   (cdkDropListDropped)="onDrop($event)">
                   
                   <!-- Google Calendar Events (Read Only) -->
@@ -172,7 +179,14 @@ import { CalendarService } from '../../../../core/services/calendar.service';
                       [cdkDragData]="entry"
                       (click)="onToggleInstance(entry.card.id, entry.item.id, entry.instance)">
                       
-                      <span class="pill-text" [title]="entry.item.text">{{ entry.item.text }}</span>
+                      <span class="pill-text" [title]="entry.item.text">
+                        @if (entry.card.integrationSource === 'MicrosoftTodo') {
+                          <span class="pill-source-icon" style="color: #60a5fa; font-size: 0.65rem;">☑ </span>
+                        } @else if (entry.card.integrationSource === 'GoogleKeep') {
+                          <span class="pill-source-icon" style="color: #fbbf24; font-size: 0.65rem;">💡 </span>
+                        }
+                        {{ entry.item.text }}
+                      </span>
                       
                       <button
                         class="unschedule-pill-btn"
@@ -671,11 +685,31 @@ import { CalendarService } from '../../../../core/services/calendar.service';
     .cdk-drag-animating {
       transition: transform 250ms cubic-bezier(0, 0, 0.2, 1);
     }
+
+    .integration-source-badge {
+      font-size: 0.62rem;
+      font-weight: 700;
+      padding: 0.08rem 0.3rem;
+      border-radius: var(--radius-sm);
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+    }
+    .integration-source-badge.ms-todo {
+      background: rgba(37, 99, 235, 0.15);
+      color: #60a5fa;
+      border: 1px solid rgba(37, 99, 235, 0.25);
+    }
+    .integration-source-badge.keep {
+      background: rgba(245, 158, 11, 0.15);
+      color: #fbbf24;
+      border: 1px solid rgba(245, 158, 11, 0.25);
+    }
   `]
 })
 export class CalendarGridComponent {
   public readonly calendarService = inject(CalendarService);
   
+  @Input() connectedTo: string[] = [];
   @Output() itemDropped = new EventEmitter<CdkDragDrop<any>>();
   @Output() instanceToggled = new EventEmitter<{ cardId: number; itemId: number; instance: ScheduledInstance }>();
   @Output() instanceUnscheduled = new EventEmitter<{ cardId: number; itemId: number; instanceId: number }>();

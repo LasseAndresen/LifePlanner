@@ -14,7 +14,8 @@ The MVP focuses on establishing the core "drag-and-drop" loop between cards and 
 Introducing AI and pulling in data from standard task managers.
 
 *   **AI Inspiration:** Generate lists of ideas for events or activities via simple prompts (e.g., "Give me 5 ideas for a cheap date night").
-*   **Microsoft TODO Integration:** Sync external tasks as cards in the app.
+*   **Microsoft TODO Integration:** (Completed) Sync tasks from Microsoft To-Do into a dedicated read-only card. Allows dragging tasks onto the calendar for multi-instance scheduling.
+*   **Google Keep Integration:** (Completed) Select specific Google Keep notes to import as dedicated, read-only cards in the sidebar. Keeps checklist items intact for calendar scheduling.
 *   **Routine Templates:** Save a collection of cards as a "Routine" that can be scheduled recursively or in bulk.
 
 ## Phase 3: Advanced Automation & Multiplayer (Could Have)
@@ -22,6 +23,11 @@ Reducing friction through advanced AI capabilities and enabling shared planning.
 
 *   **Natural Language Entry:** "Remind me to call Mom on Sunday" automatically creates and schedules a card.
 *   **Proactive AI Recommendations:** The app automatically surfaces relevant cards based on available calendar white-space and past habits.
+*   **External Integration Ecosystem (Inspiration):**
+    *   *Notion Sync:* Import database boards or checklists as read-only planning cards.
+    *   *GitHub Issues:* Select assigned repositories to pull issues/PRs into cards for developer-focused planning.
+    *   *Slack Saved Items:* Automatically sync saved/flagged messages as action items.
+    *   *Habitica Sync:* Connect Habitica to reward calendar event completions with RPG experience points.
 *   **Shopping List Integration:** Either a native feature or integration with external shopping list APIs.
 *   **Multiplayer / Shared Boards:** Allowing couples and families to share boards, add ideas collaboratively, and sync to shared calendars.
 *   **Event Proposals (Draft State):** Mark events as "Draft" to ask for a partner's approval or input before confirming it on the shared calendar.

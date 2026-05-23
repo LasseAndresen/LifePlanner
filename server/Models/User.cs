@@ -10,6 +10,9 @@ public class User
     public string? GoogleRefreshToken { get; set; }
     public DateTime? GoogleTokenExpiration { get; set; }
     
+    public bool MicrosoftTodoConnected { get; set; }
+    public bool GoogleKeepConnected { get; set; }
+    
     // Navigation properties
     public ICollection<Category> Categories { get; set; } = new List<Category>();
     

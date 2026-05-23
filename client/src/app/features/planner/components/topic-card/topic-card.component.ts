@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { DragDropModule, CdkDragDrop } from '@angular/cdk/drag-drop';
 import { Card, ListItem } from '../../../../core/models/planner.models';
 import { CardService } from '../../../../core/services/card.service';
+import { NotificationService } from '../../../../core/services/notification.service';
 
 @Component({
   selector: 'app-topic-card',
@@ -12,7 +13,7 @@ import { CardService } from '../../../../core/services/card.service';
   template: `
     <div class="topic-card glass-panel" [style.border-left-color]="card.category?.color ?? '#6366f1'">
 
-      <div class="card-header">
+      <div class="card-header" cdkDragHandle>
         <div class="header-titles">
           <h4 [title]="card.title">{{ card.title }}</h4>
           <span class="category-badge" [title]="card.category?.name ?? 'Uncategorized'">
@@ -20,20 +21,26 @@ import { CardService } from '../../../../core/services/card.service';
           </span>
         </div>
         <div class="header-badges">
-          <button
-            class="edit-card-btn"
-            (click)="$event.stopPropagation(); editCard()"
-            title="Edit card"
-            aria-label="Edit card">
-            ✎
-          </button>
-          <button
-            class="delete-card-btn"
-            (click)="$event.stopPropagation(); deleteCard()"
-            title="Delete card"
-            aria-label="Delete card">
-            ✕
-          </button>
+          @if (!card.integrationSource) {
+            <button
+              class="edit-card-btn"
+              (click)="$event.stopPropagation(); editCard()"
+              title="Edit card"
+              aria-label="Edit card">
+              ✎
+            </button>
+            <button
+              class="delete-card-btn"
+              (click)="$event.stopPropagation(); deleteCard()"
+              title="Delete card"
+              aria-label="Delete card">
+              ✕
+            </button>
+          } @else {
+            <span class="integration-badge" [class.ms-todo]="card.integrationSource === 'MicrosoftTodo'" [class.keep]="card.integrationSource === 'GoogleKeep'">
+              {{ card.integrationSource === 'MicrosoftTodo' ? 'MS Todo' : 'Keep' }}
+            </span>
+          }
         </div>
       </div>
 
@@ -42,7 +49,7 @@ import { CardService } from '../../../../core/services/card.service';
       }
 
       <!-- List items — always visible -->
-      <div class="checklist" (mousedown)="$event.stopPropagation()" (click)="$event.stopPropagation()">
+      <div class="checklist" (click)="$event.stopPropagation()">
 
         @if (card.isChecklist && card.listItems.length > 0) {
           <div class="progress-bar-wrap">
@@ -56,6 +63,7 @@ import { CardService } from '../../../../core/services/card.service';
           cdkDropList
           [id]="'card-items-' + card.id"
           [cdkDropListData]="card.listItems"
+          [cdkDropListConnectedTo]="connectedTo"
           (cdkDropListDropped)="itemDropped.emit($event)">
           @for (item of card.listItems; track item.id) {
             <li
@@ -86,8 +94,15 @@ import { CardService } from '../../../../core/services/card.service';
                     autofocus />
                 </div>
               } @else {
-                <span class="item-text" (click)="startEditItem(item)" title="Click to edit">{{ item.text }}</span>
-                <button class="delete-item-btn" (click)="deleteItem(item)" title="Remove item">✕</button>
+                <span
+                  class="item-text"
+                  (click)="!card.integrationSource && startEditItem(item)"
+                  [title]="card.integrationSource ? 'Read-only integration item' : 'Click to edit'">
+                  {{ item.text }}
+                </span>
+                @if (!card.integrationSource) {
+                  <button class="delete-item-btn" (click)="deleteItem(item)" title="Remove item">✕</button>
+                }
               }
             </li>
           }
@@ -96,22 +111,24 @@ import { CardService } from '../../../../core/services/card.service';
           }
         </ul>
 
-        @if (addingItem) {
-          <div class="add-item-row">
-            <input
-              #newItemInput
-              class="new-item-input"
-              [(ngModel)]="newItemText"
-              placeholder="New item..."
-              (keydown.enter)="confirmAddItem()"
-              (keydown.escape)="cancelAddItem()"
-              (blur)="onInputBlur()"
-              autofocus />
-            <button class="confirm-btn" (mousedown)="$event.preventDefault()" (click)="confirmAddItem()" [disabled]="!newItemText.trim()">Add</button>
-            <button class="cancel-btn" (mousedown)="$event.preventDefault()" (click)="cancelAddItem()">✕</button>
-          </div>
-        } @else {
-          <button class="add-item-btn" (click)="startAddItem()">+ Add item</button>
+        @if (!card.integrationSource) {
+          @if (addingItem) {
+            <div class="add-item-row">
+              <input
+                #newItemInput
+                class="new-item-input"
+                [(ngModel)]="newItemText"
+                placeholder="New item..."
+                (keydown.enter)="confirmAddItem()"
+                (keydown.escape)="cancelAddItem()"
+                (blur)="onInputBlur()"
+                autofocus />
+              <button class="confirm-btn" (mousedown)="$event.preventDefault()" (click)="confirmAddItem()" [disabled]="!newItemText.trim()">Add</button>
+              <button class="cancel-btn" (mousedown)="$event.preventDefault()" (click)="cancelAddItem()">✕</button>
+            </div>
+          } @else {
+            <button class="add-item-btn" (click)="startAddItem()">+ Add item</button>
+          }
         }
 
       </div>
@@ -406,16 +423,37 @@ import { CardService } from '../../../../core/services/card.service';
       transition: color 0.15s;
     }
     .cancel-btn:hover { color: var(--text-primary); }
+
+    .integration-badge {
+      font-size: 0.68rem;
+      font-weight: 700;
+      padding: 0.15rem 0.45rem;
+      border-radius: var(--radius-sm);
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+    }
+    .integration-badge.ms-todo {
+      background: rgba(37, 99, 235, 0.15);
+      color: #60a5fa;
+      border: 1px solid rgba(37, 99, 235, 0.25);
+    }
+    .integration-badge.keep {
+      background: rgba(245, 158, 11, 0.15);
+      color: #fbbf24;
+      border: 1px solid rgba(245, 158, 11, 0.25);
+    }
   `]
 })
 export class TopicCardComponent {
   @Input({ required: true }) card!: Card;
+  @Input() connectedTo: string[] = [];
   @Output() editClicked = new EventEmitter<void>();
   @Output() itemDropped = new EventEmitter<CdkDragDrop<any>>();
   @ViewChild('newItemInput') newItemInput?: ElementRef<HTMLInputElement>;
   @ViewChildren('editItemInput') editItemInputs?: QueryList<ElementRef<HTMLInputElement>>;
 
   private readonly cardService = inject(CardService);
+  private readonly notifications = inject(NotificationService);
 
   protected addingItem = false;
   protected newItemText = '';
@@ -443,7 +481,15 @@ export class TopicCardComponent {
   }
 
   protected toggleItem(item: ListItem): void {
-    this.cardService.updateListItem(this.card.id, { ...item, isCompleted: !item.isCompleted }).subscribe();
+    const isCompleted = !item.isCompleted;
+    this.cardService.updateListItem(this.card.id, { ...item, isCompleted }).subscribe({
+      next: () => {
+        if (this.card.integrationSource) {
+          const providerName = this.card.integrationSource === 'MicrosoftTodo' ? 'Microsoft To-Do' : 'Google Keep';
+          this.notifications.show(`Synced task status with ${providerName}!`, 'success');
+        }
+      }
+    });
   }
 
   protected startEditItem(item: ListItem): void {

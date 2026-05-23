@@ -175,6 +175,8 @@ public static class CardEndpoints
         ListItems = c.ListItems.Select(ToItemDto).ToList(),
         CategoryId = c.CategoryId,
         UserId = c.UserId,
+        IntegrationSource = c.IntegrationSource,
+        IntegrationExternalId = c.IntegrationExternalId,
         Category = c.Category != null ? new CategoryDto
         {
             Id = c.Category.Id,
@@ -189,6 +191,7 @@ public static class CardEndpoints
         Text = i.Text,
         IsCompleted = i.IsCompleted,
         CardId = i.CardId,
+        IntegrationExternalId = i.IntegrationExternalId,
         ScheduledInstances = i.ScheduledInstances?.Select(ToInstanceDto).ToList() ?? new()
     };
 

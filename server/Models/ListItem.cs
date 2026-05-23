@@ -10,5 +10,7 @@ public class ListItem
     public int CardId { get; set; }
     public Card? Card { get; set; }
     
+    public string? IntegrationExternalId { get; set; }
+    
     public ICollection<ScheduledInstance> ScheduledInstances { get; set; } = new List<ScheduledInstance>();
 }
