@@ -1,3 +1,5 @@
+using System;
+using System.Linq;
 using Google.Apis.Auth;
 using LifePlanner.Api.Models;
 using LifePlanner.Api.Repositories;
@@ -11,7 +13,7 @@ public static class AuthEndpoints
         // Called by the frontend immediately after a successful Google login.
         // Validates the Google ID token, then creates or retrieves the corresponding
         // user record from the database.
-        app.MapPost("/api/auth/me", async (AuthRequest request, IUserRepository userRepo, ICategoryRepository categoryRepo) =>
+        app.MapPost("/api/auth/me", async (AuthRequest request, IUserRepository userRepo, ICategoryRepository categoryRepo, IConfiguration config) =>
         {
             GoogleJsonWebSignature.Payload payload;
             try
@@ -22,6 +24,9 @@ public static class AuthEndpoints
             {
                 return Results.Unauthorized();
             }
+
+            var adminEmails = config.GetSection("AdminSettings:AdminEmails").Get<string[]>() ?? Array.Empty<string>();
+            var isAdmin = adminEmails.Contains(payload.Email, StringComparer.OrdinalIgnoreCase);
 
             var user = await userRepo.GetByGoogleAuthIdAsync(payload.Subject);
 
@@ -34,7 +39,8 @@ public static class AuthEndpoints
                     GoogleAuthId = payload.Subject,
                     GoogleAccessToken = request.AccessToken,
                     GoogleRefreshToken = request.RefreshToken,
-                    GoogleTokenExpiration = request.ExpiresIn.HasValue ? DateTime.UtcNow.AddSeconds(request.ExpiresIn.Value) : null
+                    GoogleTokenExpiration = request.ExpiresIn.HasValue ? DateTime.UtcNow.AddSeconds(request.ExpiresIn.Value) : null,
+                    IsAdmin = isAdmin
                 };
                 await userRepo.AddAsync(user);
 
@@ -47,17 +53,23 @@ public static class AuthEndpoints
                     new Category { Name = "Personal", Color = "#ec4899", UserId = user.Id }
                 });
             }
-            else if (!string.IsNullOrEmpty(request.AccessToken))
+            else
             {
-                // Update tokens if they are provided during login
-                user.GoogleAccessToken = request.AccessToken;
-                if (!string.IsNullOrEmpty(request.RefreshToken))
+                // Always sync admin status based on configuration
+                user.IsAdmin = isAdmin;
+
+                if (!string.IsNullOrEmpty(request.AccessToken))
                 {
-                    user.GoogleRefreshToken = request.RefreshToken;
-                }
-                if (request.ExpiresIn.HasValue)
-                {
-                    user.GoogleTokenExpiration = DateTime.UtcNow.AddSeconds(request.ExpiresIn.Value);
+                    // Update tokens if they are provided during login
+                    user.GoogleAccessToken = request.AccessToken;
+                    if (!string.IsNullOrEmpty(request.RefreshToken))
+                    {
+                        user.GoogleRefreshToken = request.RefreshToken;
+                    }
+                    if (request.ExpiresIn.HasValue)
+                    {
+                        user.GoogleTokenExpiration = DateTime.UtcNow.AddSeconds(request.ExpiresIn.Value);
+                    }
                 }
                 await userRepo.UpdateAsync(user);
             }

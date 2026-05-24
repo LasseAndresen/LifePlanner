@@ -17,6 +17,14 @@ import { DragDropModule, CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-
           <p class="subtitle">Drag tasks onto your calendar</p>
         </div>
         <div class="header-actions">
+          @if (isAdmin) {
+            <button class="admin-btn" (click)="adminClicked.emit()" title="Admin Console">
+              <span class="crown-icon">👑</span>
+            </button>
+          }
+          <button class="feedback-btn" (click)="feedbackClicked.emit()" title="Send Feedback">
+            <span class="feedback-icon">💬</span>
+          </button>
           <button class="integrations-btn" (click)="integrationsClicked.emit()" title="Manage integrations">
             <span class="plug-icon">🔌</span>
           </button>
@@ -92,7 +100,7 @@ import { DragDropModule, CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-
       gap: 0.65rem;
       flex-shrink: 0;
     }
-    .integrations-btn {
+    .integrations-btn, .feedback-btn, .admin-btn {
       flex-shrink: 0;
       width: 36px;
       height: 36px;
@@ -105,7 +113,7 @@ import { DragDropModule, CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-
       justify-content: center;
       transition: background 0.15s, transform 0.15s, border-color 0.15s;
     }
-    .integrations-btn:hover {
+    .integrations-btn:hover, .feedback-btn:hover, .admin-btn:hover {
       background: var(--bg-glass-hover);
       border-color: var(--border-glass-strong);
       transform: scale(1.08);
@@ -155,9 +163,12 @@ import { DragDropModule, CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-
 export class CardSidebarComponent {
   @Input({ required: true }) cards: Card[] = [];
   @Input() connectedTo: string[] = [];
+  @Input() isAdmin: boolean = false;
   @Output() addCardClicked = new EventEmitter<void>();
   @Output() editCardClicked = new EventEmitter<Card>();
   @Output() integrationsClicked = new EventEmitter<void>();
+  @Output() feedbackClicked = new EventEmitter<void>();
+  @Output() adminClicked = new EventEmitter<void>();
   @Output() itemDropped = new EventEmitter<CdkDragDrop<any>>();
   /** Emits reordered cards after drag-and-drop */
   @Output() cardsReordered = new EventEmitter<Card[]>();

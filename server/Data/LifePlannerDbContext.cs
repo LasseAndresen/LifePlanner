@@ -15,6 +15,7 @@ public class LifePlannerDbContext : DbContext
     public DbSet<Card> Cards { get; set; } = null!;
     public DbSet<ListItem> ListItems { get; set; } = null!;
     public DbSet<ScheduledInstance> ScheduledInstances { get; set; } = null!;
+    public DbSet<Feedback> Feedback { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

@@ -13,19 +13,24 @@ import { CdkDragDrop, DragDropModule } from '@angular/cdk/drag-drop';
 import { NotificationService } from '../../core/services/notification.service';
 import { ActivatedRoute, Router } from '@angular/router';
 import { CalendarInstanceDialogComponent, CalendarInstanceFormData } from './components/calendar-instance-dialog/calendar-instance-dialog.component';
+import { FeedbackDialogComponent } from './components/feedback-dialog/feedback-dialog.component';
+import { AdminDashboardDialogComponent } from './components/admin-dashboard-dialog/admin-dashboard-dialog.component';
 
 @Component({
   selector: 'app-planner',
   standalone: true,
-  imports: [CommonModule, CardSidebarComponent, CalendarGridComponent, CreateCardFormComponent, IntegrationsDialogComponent, DragDropModule, CalendarInstanceDialogComponent],
+  imports: [CommonModule, CardSidebarComponent, CalendarGridComponent, CreateCardFormComponent, IntegrationsDialogComponent, DragDropModule, CalendarInstanceDialogComponent, FeedbackDialogComponent, AdminDashboardDialogComponent],
   template: `
     <div class="planner-layout">
       <app-card-sidebar
           [cards]="cardService.unscheduledCards()"
           [connectedTo]="allDropLists()"
+          [isAdmin]="userService.currentUser()?.isAdmin || false"
           (addCardClicked)="startCreateCard()"
           (editCardClicked)="onEditCard($event)"
           (integrationsClicked)="openIntegrations()"
+          (feedbackClicked)="isFeedbackOpen.set(true)"
+          (adminClicked)="isAdminDashboardOpen.set(true)"
           (itemDropped)="onItemDropped($event)"
           (cardsReordered)="onCardsReordered($event)">
       </app-card-sidebar>
@@ -64,6 +69,14 @@ import { CalendarInstanceDialogComponent, CalendarInstanceFormData } from './com
         (cancel)="isCalendarDialogOpen.set(false)">
       </app-calendar-instance-dialog>
     }
+
+    @if (isFeedbackOpen()) {
+      <app-feedback-dialog (closed)="isFeedbackOpen.set(false)"></app-feedback-dialog>
+    }
+
+    @if (isAdminDashboardOpen()) {
+      <app-admin-dashboard-dialog (closed)="isAdminDashboardOpen.set(false)"></app-admin-dashboard-dialog>
+    }
   `,
   styles: [`
     .planner-layout {
@@ -88,7 +101,7 @@ export class PlannerComponent {
   public readonly cardService = inject(CardService);
   public readonly calendarService = inject(CalendarService);
   public readonly categoryService = inject(CategoryService);
-  private readonly userService = inject(UserService);
+  public readonly userService = inject(UserService);
   private readonly notifications = inject(NotificationService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -109,6 +122,8 @@ export class PlannerComponent {
   readonly isFormOpen = signal(false);
   readonly editingCard = signal<Card | null>(null);
   readonly isIntegrationsOpen = signal(false);
+  readonly isFeedbackOpen = signal(false);
+  readonly isAdminDashboardOpen = signal(false);
 
   readonly isCalendarDialogOpen = signal(false);
   readonly activeInstance = signal<ScheduledInstance | null>(null);

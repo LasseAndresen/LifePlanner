@@ -15,6 +15,7 @@ public class User
     public string? MicrosoftRefreshToken { get; set; }
     public DateTime? MicrosoftTokenExpiration { get; set; }
     public bool GoogleTasksConnected { get; set; }
+    public bool IsAdmin { get; set; }
     
     // Navigation properties
     public ICollection<Category> Categories { get; set; } = new List<Category>();

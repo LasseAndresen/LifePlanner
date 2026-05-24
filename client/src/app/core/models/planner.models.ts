@@ -2,6 +2,30 @@ export interface User {
   id: number;
   name: string;
   email: string;
+  isAdmin?: boolean;
+}
+
+export interface Feedback {
+  id: number;
+  userId?: number;
+  type: 'BugReport' | 'FeatureRequest' | 'Integration' | 'General';
+  title: string;
+  description: string;
+  createdAt: string;
+  status: string;
+  adminNotes?: string;
+  user?: User;
+}
+
+export interface AdminStats {
+  totalUsers: number;
+  totalCards: number;
+  totalListItems: number;
+  totalScheduledInstances: number;
+  categoryStats: { name: string; color: string; cardCount: number }[];
+  feedbackStats: { type: string; count: number }[];
+  microsoftTodoConnectedCount: number;
+  googleTasksConnectedCount: number;
 }
 
 export interface Category {

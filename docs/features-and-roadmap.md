@@ -21,6 +21,7 @@ Introducing AI, enhanced write integrations, and multi-view navigation interface
 *   **Teams-like Navigation Sidebar:** A collapsible, high-fidelity sidebar (similar to Microsoft Teams) to toggle seamlessly between pages (e.g., Planner Calendar, Whiteboard, Integrations, and Settings).
 *   **Whiteboard (Google Keep-style Card Board):** A dedicated board page displaying all planning cards on a canvas. Cards are freely movable and use non-overlapping placement rules to maintain organization.
 *   **Routine Templates:** Save a collection of cards as a "Routine" that can be scheduled recursively or in bulk.
+*   **Feedback System:** A dedicated feedback submission interface supporting bug reports, feature requests, integration requests, and general feedback options to capture user input directly inside the app.
 
 ## Phase 3: Advanced Automation & Multiplayer (Could Have)
 Reducing friction through advanced AI capabilities, multi-state events, and enabling shared planning.

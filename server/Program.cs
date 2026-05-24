@@ -49,5 +49,6 @@ app.MapCategoryEndpoints();
 app.MapCardEndpoints();
 app.MapCalendarEndpoints();
 app.MapIntegrationEndpoints();
+app.MapFeedbackEndpoints();
 
 app.Run();
