@@ -74,6 +74,8 @@ export interface Card {
   integrationSource?: string;
   integrationExternalId?: string;
   category?: Category;   // Populated when the backend includes the navigation property
+  whiteboardX?: number;
+  whiteboardY?: number;
 }
 
 export interface GoogleCalendarEvent {

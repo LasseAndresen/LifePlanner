@@ -1,4 +1,4 @@
-import { Component, computed, effect, inject, signal } from '@angular/core';
+import { Component, computed, effect, inject, signal, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { CardSidebarComponent } from './components/card-sidebar/card-sidebar.component';
 import { CalendarGridComponent } from './components/calendar-grid/calendar-grid.component';
@@ -8,8 +8,9 @@ import { CardService } from '../../core/services/card.service';
 import { CalendarService } from '../../core/services/calendar.service';
 import { CategoryService } from '../../core/services/category.service';
 import { UserService } from '../../core/services/user.service';
+import { AuthService } from '../../core/auth/auth.service';
 import { Card, ListItem, ScheduledInstance } from '../../core/models/planner.models';
-import { CdkDragDrop, DragDropModule } from '@angular/cdk/drag-drop';
+import { CdkDragDrop, DragDropModule, CdkDragEnd } from '@angular/cdk/drag-drop';
 import { NotificationService } from '../../core/services/notification.service';
 import { ActivatedRoute, Router } from '@angular/router';
 import { CalendarInstanceDialogComponent, CalendarInstanceFormData } from './components/calendar-instance-dialog/calendar-instance-dialog.component';
@@ -19,30 +20,97 @@ import { AdminDashboardDialogComponent } from './components/admin-dashboard-dial
 @Component({
   selector: 'app-planner',
   standalone: true,
-  imports: [CommonModule, CardSidebarComponent, CalendarGridComponent, CreateCardFormComponent, IntegrationsDialogComponent, DragDropModule, CalendarInstanceDialogComponent, FeedbackDialogComponent, AdminDashboardDialogComponent],
+  imports: [
+    CommonModule,
+    CardSidebarComponent,
+    CalendarGridComponent,
+    CreateCardFormComponent,
+    IntegrationsDialogComponent,
+    DragDropModule,
+    CalendarInstanceDialogComponent,
+    FeedbackDialogComponent,
+    AdminDashboardDialogComponent
+  ],
   template: `
-    <div class="planner-layout">
-      <app-card-sidebar
-          [cards]="cardService.unscheduledCards()"
-          [connectedTo]="allDropLists()"
-          [isAdmin]="userService.currentUser()?.isAdmin || false"
-          (addCardClicked)="startCreateCard()"
-          (editCardClicked)="onEditCard($event)"
-          (integrationsClicked)="openIntegrations()"
-          (feedbackClicked)="isFeedbackOpen.set(true)"
-          (adminClicked)="isAdminDashboardOpen.set(true)"
-          (itemDropped)="onItemDropped($event)"
-          (cardsReordered)="onCardsReordered($event)">
-      </app-card-sidebar>
+    <div class="app-layout">
+      <!-- Teams-like Sidebar -->
+      <nav class="teams-sidebar">
+        <div class="sidebar-brand">
+          <span class="logo-spark">✦</span>
+        </div>
+        
+        <div class="sidebar-nav">
+          <button 
+            [class.active]="viewMode() === 'calendar'" 
+            (click)="setViewMode('calendar')" 
+            title="Calendar View"
+            class="nav-item"
+            id="nav-calendar-btn">
+            <span class="nav-icon">📅</span>
+            <span class="nav-label">Calendar</span>
+          </button>
+          
+          <button 
+            [class.active]="viewMode() === 'whiteboard'" 
+            (click)="setViewMode('whiteboard')" 
+            title="Whiteboard View"
+            class="nav-item"
+            id="nav-whiteboard-btn">
+            <span class="nav-icon">📋</span>
+            <span class="nav-label">Whiteboard</span>
+          </button>
+        </div>
 
-      <app-calendar-grid
-        [connectedTo]="allDropLists()"
-        (itemDropped)="onItemDropped($event)"
-        (addClicked)="onAddCalendarItem($event)"
-        (editClicked)="onEditCalendarItem($event)"
-        (instanceToggled)="onInstanceToggled($event)"
-        (instanceUnscheduled)="onInstanceUnscheduled($event)">
-      </app-calendar-grid>
+        <div class="sidebar-footer">
+          @if (userService.currentUser()?.isAdmin || false) {
+            <button class="nav-item action-btn" (click)="isAdminDashboardOpen.set(true)" title="Admin Console" id="nav-admin-btn">
+              <span class="nav-icon">👑</span>
+              <span class="nav-label">Admin</span>
+            </button>
+          }
+          <button class="nav-item action-btn" (click)="isFeedbackOpen.set(true)" title="Send Feedback" id="nav-feedback-btn">
+            <span class="nav-icon">💬</span>
+            <span class="nav-label">Feedback</span>
+          </button>
+          <button class="nav-item action-btn" (click)="openIntegrations()" title="Manage Integrations" id="nav-integrations-btn">
+            <span class="nav-icon">🔌</span>
+            <span class="nav-label">Integrations</span>
+          </button>
+          <button class="nav-item action-btn logout-btn" (click)="logout()" title="Logout" id="nav-logout-btn">
+            <span class="nav-icon">🚪</span>
+            <span class="nav-label">Logout</span>
+          </button>
+        </div>
+      </nav>
+
+      <!-- Main Planner Content Area -->
+      <div class="planner-layout">
+        <!-- Card Sidebar Column (which expands to Whiteboard Canvas) -->
+        <div class="sidebar-wrapper" [class.expanded]="viewMode() === 'whiteboard'">
+          <app-card-sidebar
+              [viewMode]="viewMode()"
+              [cards]="cardService.unscheduledCards()"
+              [connectedTo]="allDropLists()"
+              (addCardClicked)="startCreateCard()"
+              (editCardClicked)="onEditCard($event)"
+              (itemDropped)="onItemDropped($event)"
+              (cardsReordered)="onCardsReordered($event)"
+              (cardDragEnded)="onCardDragEnded($event.event, $event.card)">
+          </app-card-sidebar>
+        </div>
+
+        <!-- Calendar Grid Column (which collapses to the right) -->
+        <div class="calendar-wrapper" [class.collapsed]="viewMode() === 'whiteboard'">
+          <app-calendar-grid
+            [connectedTo]="allDropLists()"
+            (itemDropped)="onItemDropped($event)"
+            (addClicked)="onAddCalendarItem($event)"
+            (editClicked)="onEditCalendarItem($event)"
+            (instanceToggled)="onInstanceToggled($event)"
+            (instanceUnscheduled)="onInstanceUnscheduled($event)">
+          </app-calendar-grid>
+        </div>
+      </div>
     </div>
 
     @if (isFormOpen()) {
@@ -79,21 +147,152 @@ import { AdminDashboardDialogComponent } from './components/admin-dashboard-dial
     }
   `,
   styles: [`
-    .planner-layout {
-      display: grid;
-      grid-template-columns: 320px 1fr;
+    .app-layout {
+      display: flex;
       height: 100vh;
       width: 100vw;
+      overflow: hidden;
+      background-color: var(--bg-primary);
+    }
+    .teams-sidebar {
+      width: 80px;
+      height: 100%;
+      background-color: var(--bg-secondary);
+      border-right: 1px solid var(--border-glass);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 1.5rem 0;
+      gap: 1.5rem;
+      z-index: 10;
+      flex-shrink: 0;
+    }
+    .sidebar-brand {
+      width: 44px;
+      height: 44px;
+      border-radius: var(--radius-md);
+      background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 0.5rem;
+      box-shadow: 0 0 16px rgba(99, 102, 241, 0.4);
+    }
+    .logo-spark {
+      color: #fff;
+      font-size: 1.5rem;
+      animation: float-sparkle 3s ease-in-out infinite;
+    }
+    .sidebar-nav {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      flex: 1;
+      width: 100%;
+      align-items: center;
+    }
+    .nav-item {
+      width: 68px;
+      height: 60px;
+      border-radius: var(--radius-md);
+      border: 1px solid transparent;
+      background: transparent;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      color: var(--text-muted);
+      position: relative;
+      padding: 6px 2px;
+    }
+    .nav-item:hover {
+      background: var(--bg-glass-hover);
+      color: var(--text-primary);
+      border-color: var(--border-glass-strong);
+      transform: translateY(-2px);
+    }
+    .nav-item.active {
+      background: rgba(99, 102, 241, 0.15);
+      border-color: rgba(99, 102, 241, 0.35);
+      color: var(--text-primary);
+    }
+    .nav-item.active::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 15px;
+      height: 30px;
+      width: 4px;
+      background: linear-gradient(to bottom, var(--accent-primary), var(--accent-secondary));
+      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+      box-shadow: 0 0 8px var(--accent-primary);
+    }
+    .nav-icon {
+      font-size: 1.30rem;
+    }
+    .nav-label {
+      font-size: 0.65rem;
+      margin-top: 2px;
+      font-weight: 500;
+    }
+    .sidebar-footer {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      width: 100%;
+      align-items: center;
+      border-top: 1px solid var(--border-glass);
+      padding-top: 1.25rem;
+    }
+    .action-btn {
+      color: var(--text-muted);
+    }
+    .logout-btn:hover {
+      color: #ef4444;
+      background: rgba(239, 68, 68, 0.1);
+      border-color: rgba(239, 68, 68, 0.2);
+    }
+    .planner-layout {
+      display: flex;
+      flex: 1;
+      height: 100vh;
+      overflow: hidden;
       background-image:
-        radial-gradient(circle at top right, rgba(99, 102, 241, 0.15), transparent 40%),
-        radial-gradient(circle at bottom left, rgba(236, 72, 153, 0.15), transparent 40%);
+        radial-gradient(circle at top right, rgba(99, 102, 241, 0.12), transparent 40%),
+        radial-gradient(circle at bottom left, rgba(236, 72, 153, 0.12), transparent 40%);
+      position: relative;
+    }
+    .sidebar-wrapper {
+      width: 320px;
+      height: 100%;
+      flex-shrink: 0;
+      flex-grow: 0;
+      transition: width 1.0s cubic-bezier(0.25, 0.8, 0.25, 1), flex-grow 1.0s cubic-bezier(0.25, 0.8, 0.25, 1);
+      overflow: hidden;
+      display: block;
+    }
+    .sidebar-wrapper.expanded {
+      width: 100% !important;
+      flex-grow: 1 !important;
+    }
+    .calendar-wrapper {
+      width: calc(100% - 320px);
+      flex-grow: 1;
+      height: 100%;
+      transition: width 1.0s cubic-bezier(0.25, 0.8, 0.25, 1), flex-grow 1.0s cubic-bezier(0.25, 0.8, 0.25, 1), opacity 1.0s cubic-bezier(0.25, 0.8, 0.25, 1);
       overflow: hidden;
     }
-    .planner-layout > * {
-      min-height: 0;
-      min-width: 0;
-      height: 100%;
-      overflow: hidden;
+    .calendar-wrapper.collapsed {
+      width: 0 !important;
+      flex-grow: 0 !important;
+      opacity: 0;
+      pointer-events: none;
+    }
+    @keyframes float-sparkle {
+      0%, 100% { transform: translateY(0) scale(1); filter: drop-shadow(0 0 2px var(--accent-primary)); }
+      50% { transform: translateY(-3px) scale(1.05); filter: drop-shadow(0 0 6px var(--accent-secondary)); }
     }
   `]
 })
@@ -102,9 +301,11 @@ export class PlannerComponent {
   public readonly calendarService = inject(CalendarService);
   public readonly categoryService = inject(CategoryService);
   public readonly userService = inject(UserService);
+  public readonly authService = inject(AuthService);
   private readonly notifications = inject(NotificationService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly cdr = inject(ChangeDetectorRef);
 
   readonly calendarDayIds = computed(() => 
     this.calendarService.daysGrid().map(day => 'calendar-day-' + day.dateIso)
@@ -130,6 +331,8 @@ export class PlannerComponent {
   readonly activeItem = signal<ListItem | null>(null);
   readonly activeCard = signal<Card | null>(null);
   readonly defaultDate = signal<string | null>(null);
+
+  readonly viewMode = signal<'calendar' | 'whiteboard'>('calendar');
 
   constructor() {
     effect(() => {
@@ -170,6 +373,12 @@ export class PlannerComponent {
         });
       }
     });
+  }
+
+  logout(): void {
+    if (confirm('Are you sure you want to log out?')) {
+      this.authService.logout();
+    }
   }
 
   startCreateCard(): void {
@@ -370,5 +579,174 @@ export class PlannerComponent {
   onDeleteCalendarItem(id: number): void {
     this.cardService.deleteScheduledInstance(id).subscribe();
     this.isCalendarDialogOpen.set(false);
+  }
+
+  // --- Whiteboard Coordinates Logic ---
+
+  getCardX(card: Card): number {
+    return card.whiteboardX !== null && card.whiteboardX !== undefined
+      ? card.whiteboardX
+      : this.getDefaultCoordinates(card).x;
+  }
+
+  getCardY(card: Card): number {
+    return card.whiteboardY !== null && card.whiteboardY !== undefined
+      ? card.whiteboardY
+      : this.getDefaultCoordinates(card).y;
+  }
+
+  getDefaultCoordinates(card: Card): { x: number, y: number } {
+    const cards = this.cardService.unscheduledCards();
+    const index = cards.findIndex(c => c.id === card.id);
+    const cardsPerRow = 3;
+    const cardWidth = 320;
+    const cardHeight = 250;
+    const gap = 32;
+    const startX = 48;
+    const startY = 120;
+
+    const row = Math.floor(index / cardsPerRow);
+    const col = index % cardsPerRow;
+
+    return {
+      x: startX + col * (cardWidth + gap),
+      y: startY + row * (cardHeight + gap)
+    };
+  }
+
+  resolveOverlap(cardId: number, targetX: number, targetY: number, cards: Card[]): { x: number, y: number } {
+    const getCardSize = (id: number) => {
+      const el = document.querySelector(`.sidebar-card-item[data-card-id="${id}"]`);
+      if (el) {
+        return { w: el.clientWidth || 320, h: el.clientHeight || 250 };
+      }
+      return { w: 320, h: 250 };
+    };
+
+    const targetSize = getCardSize(cardId);
+    let resolvedX = Math.max(16, targetX);
+    let resolvedY = Math.max(16, targetY);
+
+    let hasOverlap = true;
+    let iterations = 0;
+    const maxIterations = 50;
+
+    while (hasOverlap && iterations < maxIterations) {
+      hasOverlap = false;
+      iterations++;
+
+      for (const other of cards) {
+        if (other.id === cardId) continue;
+
+        const otherX = this.getCardX(other);
+        const otherY = this.getCardY(other);
+        const otherSize = getCardSize(other.id);
+
+        const overlapX = Math.max(0, Math.min(resolvedX + targetSize.w, otherX + otherSize.w) - Math.max(resolvedX, otherX));
+        const overlapY = Math.max(0, Math.min(resolvedY + targetSize.h, otherY + otherSize.h) - Math.max(resolvedY, otherY));
+
+        if (overlapX > 0 && overlapY > 0) {
+          hasOverlap = true;
+          if (overlapX < overlapY) {
+            if (resolvedX < otherX) {
+              resolvedX -= overlapX;
+            } else {
+              resolvedX += overlapX;
+            }
+          } else {
+            if (resolvedY < otherY) {
+              resolvedY -= overlapY;
+            } else {
+              resolvedY += overlapY;
+            }
+          }
+          resolvedX = Math.max(16, resolvedX);
+          resolvedY = Math.max(16, resolvedY);
+          break;
+        }
+      }
+    }
+
+    return { x: Math.round(resolvedX), y: Math.round(resolvedY) };
+  }
+
+  onCardDragEnded(event: CdkDragEnd, card: Card): void {
+    const offset = event.distance;
+    const currentX = this.getCardX(card);
+    const currentY = this.getCardY(card);
+
+    const rawNewX = currentX + offset.x;
+    const rawNewY = currentY + offset.y;
+
+    const cards = this.cardService.unscheduledCards();
+    const resolved = this.resolveOverlap(card.id, rawNewX, rawNewY, cards);
+
+    event.source.reset();
+
+    this.cardService.updateCard(card.id, {
+      whiteboardX: resolved.x,
+      whiteboardY: resolved.y
+    }).subscribe();
+  }
+
+  setViewMode(mode: 'calendar' | 'whiteboard'): void {
+    if (this.viewMode() === mode) return;
+
+    // Capture first positions in the DOM before class toggles update positions
+    const firstRects = new Map<number, DOMRect>();
+    document.querySelectorAll('.sidebar-card-item').forEach((el) => {
+      const cardIdStr = el.getAttribute('data-card-id');
+      if (cardIdStr) {
+        const cardId = parseInt(cardIdStr, 10);
+        if (!isNaN(cardId)) {
+          firstRects.set(cardId, el.getBoundingClientRect());
+        }
+      }
+    });
+
+    this.viewMode.set(mode);
+
+    // Force synchronous DOM layout update so they are placed in their final HTML structure instantly
+    this.cdr.detectChanges();
+
+    // Query elements in the new DOM structure (instantly available) and apply FLIP
+    document.querySelectorAll('.sidebar-card-item').forEach((el) => {
+      const htmlEl = el as HTMLElement;
+      const cardIdStr = htmlEl.getAttribute('data-card-id');
+      if (!cardIdStr) return;
+      const cardId = parseInt(cardIdStr, 10);
+      if (isNaN(cardId)) return;
+
+      const firstRect = firstRects.get(cardId);
+      if (!firstRect) return;
+
+      const lastRect = htmlEl.getBoundingClientRect();
+
+      const dx = firstRect.left - lastRect.left;
+      const dy = firstRect.top - lastRect.top;
+      const dw = firstRect.width;
+
+      // Apply "First" styling instantly in the same paint cycle
+      htmlEl.style.transition = 'none';
+      htmlEl.style.transform = `translate3d(${dx}px, ${dy}px, 0)`;
+      htmlEl.style.width = `${dw}px`;
+      htmlEl.style.zIndex = '1000';
+
+      // Play transition to zero-translate (the final destination layout)
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          htmlEl.style.transition = 'transform 1.0s cubic-bezier(0.25, 0.8, 0.25, 1), width 1.0s cubic-bezier(0.25, 0.8, 0.25, 1)';
+          htmlEl.style.transform = 'translate3d(0, 0, 0)';
+          htmlEl.style.width = '';
+
+          setTimeout(() => {
+            htmlEl.style.transition = '';
+            htmlEl.style.transform = '';
+            htmlEl.style.width = '';
+            htmlEl.style.zIndex = '';
+          }, 1000);
+        });
+      });
+    });
   }
 }

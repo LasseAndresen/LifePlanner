@@ -57,6 +57,8 @@ public static class CardEndpoints
             card.CategoryId = updatedCard.CategoryId;
             card.ScheduledDate = updatedCard.ScheduledDate;
             card.IsChecklist = updatedCard.IsChecklist;
+            card.WhiteboardX = updatedCard.WhiteboardX;
+            card.WhiteboardY = updatedCard.WhiteboardY;
 
             await repo.UpdateAsync(card);
 
@@ -275,6 +277,8 @@ public static class CardEndpoints
         UserId = c.UserId,
         IntegrationSource = c.IntegrationSource,
         IntegrationExternalId = c.IntegrationExternalId,
+        WhiteboardX = c.WhiteboardX,
+        WhiteboardY = c.WhiteboardY,
         Category = c.Category != null ? new CategoryDto
         {
             Id = c.Category.Id,

@@ -353,6 +353,8 @@ public class IntegrationService : IIntegrationService
         UserId = c.UserId,
         IntegrationSource = c.IntegrationSource,
         IntegrationExternalId = c.IntegrationExternalId,
+        WhiteboardX = c.WhiteboardX,
+        WhiteboardY = c.WhiteboardY,
         Category = c.Category != null ? new CategoryDto
         {
             Id = c.Category.Id,

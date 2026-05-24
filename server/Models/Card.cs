@@ -21,4 +21,7 @@ public class Card
     
     public int UserId { get; set; }
     public User? User { get; set; }
+
+    public double? WhiteboardX { get; set; }
+    public double? WhiteboardY { get; set; }
 }

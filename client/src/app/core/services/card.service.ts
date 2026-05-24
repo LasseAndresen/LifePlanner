@@ -93,13 +93,21 @@ export class CardService {
   updateCard(id: number, updates: Partial<Card>): Observable<Card> {
     const current = this.cardsSignal().find(c => c.id === id);
     if (!current) throw new Error('Card not found');
+
+    const updatedLocal = { ...current, ...updates };
+    // Synchronously update local signal for instant UI layout alignment
+    this.cardsSignal.update(cards =>
+      cards.map(c => c.id === id ? updatedLocal : c)
+    );
+
     return this.http
-      .put<Card>(`${environment.apiBaseUrl}/api/cards/${id}`, { ...current, ...updates })
+      .put<Card>(`${environment.apiBaseUrl}/api/cards/${id}`, updatedLocal)
       .pipe(
-        tap(updated => this.cardsSignal.update(cards =>
-          cards.map(c => c.id === id ? updated : c)
-        )),
         catchError(err => {
+          // Rollback to previous state if HTTP update fails
+          this.cardsSignal.update(cards =>
+            cards.map(c => c.id === id ? current : c)
+          );
           this.notifications.error('Update failed. ' + (err.error?.detail || ''));
           return throwError(() => err);
         })

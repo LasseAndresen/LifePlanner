@@ -15,6 +15,8 @@ public class CardDto
     public int UserId { get; set; }
     public string? IntegrationSource { get; set; }
     public string? IntegrationExternalId { get; set; }
+    public double? WhiteboardX { get; set; }
+    public double? WhiteboardY { get; set; }
 }
 
 public class CategoryDto
