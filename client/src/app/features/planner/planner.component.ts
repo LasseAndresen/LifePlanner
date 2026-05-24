@@ -90,6 +90,7 @@ import { AdminDashboardDialogComponent } from './components/admin-dashboard-dial
           <app-card-sidebar
               [viewMode]="viewMode()"
               [cards]="cardService.unscheduledCards()"
+              [categories]="categoryService.categories()"
               [connectedTo]="allDropLists()"
               (addCardClicked)="startCreateCard()"
               (editCardClicked)="onEditCard($event)"

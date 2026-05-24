@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, inject, ViewChild, ViewChildren, QueryList, ElementRef } from '@angular/core';
+import { Component, Input, Output, EventEmitter, inject, ViewChild, ViewChildren, QueryList, ElementRef, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DragDropModule, CdkDragDrop } from '@angular/cdk/drag-drop';
@@ -11,7 +11,7 @@ import { NotificationService } from '../../../../core/services/notification.serv
   standalone: true,
   imports: [CommonModule, FormsModule, DragDropModule],
   template: `
-    <div class="topic-card glass-panel" [style.border-left-color]="card.category?.color ?? '#6366f1'">
+    <div class="topic-card glass-panel" [class.collapsed]="isCollapsed" [style.border-left-color]="card.category?.color ?? '#6366f1'">
 
       <div class="card-header" cdkDragHandle>
         <div class="header-titles">
@@ -21,6 +21,14 @@ import { NotificationService } from '../../../../core/services/notification.serv
           </span>
         </div>
         <div class="header-badges">
+          <button
+            class="collapse-btn"
+            [class.collapsed]="isCollapsed"
+            (click)="$event.stopPropagation(); toggleCollapse()"
+            [title]="isCollapsed ? 'Expand card' : 'Collapse card'"
+            aria-label="Toggle Collapse">
+            ▼
+          </button>
           @if (!card.integrationSource) {
             <button
               class="edit-card-btn"
@@ -111,7 +119,7 @@ import { NotificationService } from '../../../../core/services/notification.serv
           }
         </ul>
 
-        @if (!card.integrationSource) {
+        @if (!card.integrationSource && !isCollapsed) {
           @if (addingItem) {
             <div class="add-item-row">
               <input
@@ -147,6 +155,50 @@ import { NotificationService } from '../../../../core/services/notification.serv
       overflow: hidden;
     }
     .topic-card:hover { box-shadow: 0 8px 32px rgba(255, 255, 255, 0.1); }
+    .topic-card.collapsed {
+      min-height: 110px;
+    }
+    .topic-card.collapsed .item-list {
+      max-height: 96px; /* shows exactly 3 items at ~32px each */
+      overflow-y: auto;
+      padding-right: 0.25rem;
+    }
+    .topic-card.collapsed .item-list::-webkit-scrollbar {
+      width: 4px;
+    }
+    .topic-card.collapsed .item-list::-webkit-scrollbar-track {
+      background: rgba(255, 255, 255, 0.02);
+      border-radius: 2px;
+    }
+    .topic-card.collapsed .item-list::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 2px;
+    }
+    .topic-card.collapsed .item-list::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.25);
+    }
+    .collapse-btn {
+      font-size: 0.65rem;
+      padding: 0.15rem 0.4rem;
+      border-radius: var(--radius-full);
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.2s ease;
+      line-height: 1.4;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .collapse-btn:hover {
+      background: rgba(255, 255, 255, 0.12);
+      border-color: rgba(255, 255, 255, 0.25);
+      color: var(--text-primary);
+    }
+    .collapse-btn.collapsed {
+      transform: rotate(-90deg);
+    }
 
     .card-header {
       display: flex;
@@ -444,7 +496,7 @@ import { NotificationService } from '../../../../core/services/notification.serv
     }
   `]
 })
-export class TopicCardComponent {
+export class TopicCardComponent implements OnInit {
   @Input({ required: true }) card!: Card;
   @Input() connectedTo: string[] = [];
   @Output() editClicked = new EventEmitter<void>();
@@ -457,6 +509,50 @@ export class TopicCardComponent {
 
   protected addingItem = false;
   protected newItemText = '';
+
+  protected isCollapsed = false;
+
+  ngOnInit(): void {
+    const collapsedIdsStr = localStorage.getItem('lifeplanner_collapsed_cards');
+    if (collapsedIdsStr) {
+      try {
+        const collapsedIds = JSON.parse(collapsedIdsStr);
+        if (Array.isArray(collapsedIds) && collapsedIds.includes(this.card.id)) {
+          this.isCollapsed = true;
+        }
+      } catch (e) {
+        console.error('Failed to parse collapsed cards from local storage', e);
+      }
+    }
+  }
+
+  protected toggleCollapse(): void {
+    this.isCollapsed = !this.isCollapsed;
+    
+    // Save to local storage
+    const collapsedIdsStr = localStorage.getItem('lifeplanner_collapsed_cards');
+    let collapsedIds: number[] = [];
+    if (collapsedIdsStr) {
+      try {
+        collapsedIds = JSON.parse(collapsedIdsStr);
+        if (!Array.isArray(collapsedIds)) {
+          collapsedIds = [];
+        }
+      } catch (e) {
+        collapsedIds = [];
+      }
+    }
+    
+    if (this.isCollapsed) {
+      if (!collapsedIds.includes(this.card.id)) {
+        collapsedIds.push(this.card.id);
+      }
+    } else {
+      collapsedIds = collapsedIds.filter(id => id !== this.card.id);
+    }
+    
+    localStorage.setItem('lifeplanner_collapsed_cards', JSON.stringify(collapsedIds));
+  }
 
   protected editingItemId: number | null = null;
   protected editingItemText = '';

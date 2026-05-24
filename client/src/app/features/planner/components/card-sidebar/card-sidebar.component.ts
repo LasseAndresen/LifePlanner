@@ -1,6 +1,6 @@
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { Component, EventEmitter, Input, Output, HostListener, ElementRef, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Card } from '../../../../core/models/planner.models';
+import { Card, Category } from '../../../../core/models/planner.models';
 import { TopicCardComponent } from '../topic-card/topic-card.component';
 import { DragDropModule, CdkDragDrop, moveItemInArray, CdkDragEnd } from '@angular/cdk/drag-drop';
 
@@ -52,8 +52,45 @@ import { DragDropModule, CdkDragDrop, moveItemInArray, CdkDragEnd } from '@angul
           </div>
         </div>
 
-        <div class="card-list" cdkDropList [cdkDropListData]="cards" (cdkDropListDropped)="onDrop($event)">
-          @for (card of cards; track card.id) {
+        <!-- Category Filter Dropdown -->
+        <div class="category-filters">
+          <button 
+            class="filter-chip dropdown-trigger" 
+            [class.active]="selectedCategoryIds.size > 0"
+            (click)="toggleDropdown($event)">
+            📁 Categories
+            @if (selectedCategoryIds.size > 0) {
+              <span class="badge">{{ selectedCategoryIds.size }}</span>
+            } @else {
+              <span class="badge-all">All</span>
+            }
+            <span class="arrow" [class.open]="dropdownOpen">▼</span>
+          </button>
+
+          @if (dropdownOpen) {
+            <div class="dropdown-menu glass-panel">
+              <button class="dropdown-item" (click)="clearFilters($event)">
+                <span class="checkbox" [class.checked]="selectedCategoryIds.size === 0">
+                  @if (selectedCategoryIds.size === 0) { ✓ }
+                </span>
+                All Categories
+              </button>
+              <div class="dropdown-divider"></div>
+              @for (cat of categories; track cat.id) {
+                <button class="dropdown-item" (click)="toggleCategory(cat.id, $event)">
+                  <span class="checkbox" [class.checked]="selectedCategoryIds.has(cat.id)">
+                    @if (selectedCategoryIds.has(cat.id)) { ✓ }
+                  </span>
+                  <span class="color-dot" [style.background-color]="cat.color"></span>
+                  {{ cat.name }}
+                </button>
+              }
+            </div>
+          }
+        </div>
+
+        <div class="card-list" cdkDropList [cdkDropListData]="filteredCards" (cdkDropListDropped)="onDrop($event)">
+          @for (card of filteredCards; track card.id) {
             <app-topic-card
               class="sidebar-card-item"
               [attr.data-card-id]="card.id"
@@ -113,6 +150,126 @@ import { DragDropModule, CdkDragDrop, moveItemInArray, CdkDragEnd } from '@angul
       align-items: flex-start;
       justify-content: space-between;
       flex-shrink: 0;
+    }
+    .category-filters {
+      position: relative;
+      display: flex;
+      align-items: center;
+      padding-bottom: 0.75rem;
+      border-bottom: 1px solid var(--border-glass);
+      margin-bottom: 0.25rem;
+      flex-shrink: 0;
+    }
+    .filter-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.35rem 0.75rem;
+      border-radius: var(--radius-full);
+      font-size: 0.78rem;
+      font-weight: 500;
+      color: var(--text-muted);
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      user-select: none;
+    }
+    .filter-chip:hover {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(255, 255, 255, 0.16);
+      color: var(--text-primary);
+      transform: translateY(-1px);
+    }
+    .filter-chip.active {
+      color: #fff;
+      border-color: var(--accent-primary) !important;
+      background: rgba(99, 102, 241, 0.15);
+      box-shadow: 0 0 12px rgba(99, 102, 241, 0.15);
+    }
+    .badge {
+      background: var(--accent-primary);
+      color: #fff;
+      border-radius: var(--radius-sm);
+      padding: 0.1rem 0.35rem;
+      font-size: 0.65rem;
+      font-weight: 700;
+    }
+    .badge-all {
+      opacity: 0.6;
+      font-size: 0.7rem;
+    }
+    .arrow {
+      font-size: 0.6rem;
+      transition: transform 0.2s ease;
+    }
+    .arrow.open {
+      transform: rotate(180deg);
+    }
+    .dropdown-menu {
+      position: absolute;
+      top: calc(100% - 0.25rem);
+      left: 0;
+      z-index: 1000;
+      min-width: 200px;
+      background: rgba(22, 22, 34, 0.95);
+      border: 1px solid var(--border-glass-strong);
+      border-radius: var(--radius-md);
+      box-shadow: var(--shadow-glass);
+      padding: 0.5rem 0;
+      display: flex;
+      flex-direction: column;
+      backdrop-filter: blur(12px);
+      margin-top: 0.5rem;
+    }
+    .dropdown-item {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      padding: 0.45rem 1rem;
+      width: 100%;
+      background: transparent;
+      border: none;
+      color: var(--text-secondary);
+      font-size: 0.82rem;
+      text-align: left;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+    .dropdown-item:hover {
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text-primary);
+    }
+    .dropdown-divider {
+      height: 1px;
+      background: var(--border-glass);
+      margin: 0.35rem 0;
+    }
+    .checkbox {
+      width: 14px;
+      height: 14px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.6rem;
+      color: var(--accent-primary);
+      transition: border-color 0.15s, background 0.15s;
+      flex-shrink: 0;
+    }
+    .checkbox.checked {
+      border-color: var(--accent-primary);
+      background: rgba(99, 102, 241, 0.15);
+      color: #818cf8;
+      font-weight: bold;
+    }
+    .color-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+      box-shadow: 0 0 4px currentColor;
     }
     .whiteboard-header {
       margin-bottom: 1.5rem;
@@ -179,12 +336,13 @@ import { DragDropModule, CdkDragDrop, moveItemInArray, CdkDragEnd } from '@angul
     }
     .sidebar-card-item {
       display: block;
-      width: 288px;
+      width: 100%;
       box-sizing: border-box;
       transition: transform 1.0s cubic-bezier(0.25, 0.8, 0.25, 1);
     }
     .sidebar-card-item.whiteboard-mode {
       position: absolute;
+      width: 288px;
       z-index: 5;
       margin-bottom: 0;
       cursor: grab;
@@ -244,6 +402,7 @@ import { DragDropModule, CdkDragDrop, moveItemInArray, CdkDragEnd } from '@angul
 })
 export class CardSidebarComponent {
   @Input({ required: true }) cards: Card[] = [];
+  @Input() categories: Category[] = [];
   @Input() connectedTo: string[] = [];
   @Input() viewMode: 'calendar' | 'whiteboard' = 'calendar';
   @Output() addCardClicked = new EventEmitter<void>();
@@ -252,11 +411,59 @@ export class CardSidebarComponent {
   @Output() cardsReordered = new EventEmitter<Card[]>();
   @Output() cardDragEnded = new EventEmitter<{ event: CdkDragEnd; card: Card }>();
 
+  private readonly elementRef = inject(ElementRef);
+  protected dropdownOpen = false;
+  protected selectedCategoryIds = new Set<number>();
+
+  protected get filteredCards(): Card[] {
+    if (this.selectedCategoryIds.size === 0) {
+      return this.cards;
+    }
+    return this.cards.filter(c => this.selectedCategoryIds.has(c.categoryId));
+  }
+
+  protected toggleDropdown(event: MouseEvent): void {
+    event.stopPropagation();
+    this.dropdownOpen = !this.dropdownOpen;
+  }
+
+  protected toggleCategory(id: number, event: MouseEvent): void {
+    event.stopPropagation();
+    if (this.selectedCategoryIds.has(id)) {
+      this.selectedCategoryIds.delete(id);
+    } else {
+      this.selectedCategoryIds.add(id);
+    }
+  }
+
+  protected clearFilters(event: MouseEvent): void {
+    event.stopPropagation();
+    this.selectedCategoryIds.clear();
+  }
+
+  @HostListener('document:click', ['$event'])
+  onDocumentClick(event: MouseEvent): void {
+    if (!this.elementRef.nativeElement.contains(event.target)) {
+      this.dropdownOpen = false;
+    }
+  }
+
   onDrop(event: CdkDragDrop<Card[]>): void {
     if (event.previousContainer === event.container) {
       const clonedCards = [...this.cards];
-      moveItemInArray(clonedCards, event.previousIndex, event.currentIndex);
-      this.cardsReordered.emit(clonedCards);
+      const filtered = this.filteredCards;
+      const prevCard = filtered[event.previousIndex];
+      const currCard = filtered[event.currentIndex];
+      
+      if (prevCard && currCard) {
+        const prevIdx = clonedCards.findIndex(c => c.id === prevCard.id);
+        const currIdx = clonedCards.findIndex(c => c.id === currCard.id);
+        
+        if (prevIdx !== -1 && currIdx !== -1) {
+          moveItemInArray(clonedCards, prevIdx, currIdx);
+          this.cardsReordered.emit(clonedCards);
+        }
+      }
     } else {
       this.itemDropped.emit(event);
     }
