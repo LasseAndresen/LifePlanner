@@ -107,6 +107,16 @@ public static class CardEndpoints
             {
                 item.CardId = updatedItem.CardId;
             }
+
+            // Sync rename to all linked scheduled instances in the DB
+            if (item.ScheduledInstances != null)
+            {
+                foreach (var inst in item.ScheduledInstances)
+                {
+                    inst.Title = updatedItem.Text;
+                }
+            }
+
             await db.SaveChangesAsync();
 
             return Results.Ok(ToItemDto(item));
@@ -162,6 +172,94 @@ public static class CardEndpoints
             await db.SaveChangesAsync();
             return Results.NoContent();
         }).WithTags("Cards");
+
+        // --- Flat Scheduled Instance endpoints ---
+
+        // GET /api/users/{userId}/scheduled-instances
+        app.MapGet("/api/users/{userId}/scheduled-instances", async (int userId, LifePlannerDbContext db) =>
+        {
+            var instances = await db.ScheduledInstances
+                .Include(si => si.Category)
+                .Include(si => si.ListItem)
+                    .ThenInclude(li => li!.Card)
+                        .ThenInclude(c => c!.Category)
+                .Where(si => si.UserId == userId)
+                .ToListAsync();
+            return Results.Ok(instances.Select(ToInstanceDto));
+        }).WithTags("ScheduledInstances");
+
+        var instanceGroup = app.MapGroup("/api/scheduled-instances").WithTags("ScheduledInstances");
+
+        // POST /api/scheduled-instances
+        instanceGroup.MapPost("/", async (ScheduledInstance instance, LifePlannerDbContext db) =>
+        {
+            if (instance.UserId <= 0)
+            {
+                return Results.BadRequest("UserId is required.");
+            }
+
+            if (instance.ListItemId.HasValue)
+            {
+                var item = await db.ListItems.Include(li => li.Card).FirstOrDefaultAsync(li => li.Id == instance.ListItemId.Value);
+                if (item == null) return Results.NotFound("ListItem not found.");
+                
+                // If it is linked to a task, we set the task context title
+                instance.Title = item.Text;
+            }
+
+            db.ScheduledInstances.Add(instance);
+            await db.SaveChangesAsync();
+
+            // Load it back with includes
+            var reloaded = await db.ScheduledInstances
+                .Include(si => si.Category)
+                .Include(si => si.ListItem)
+                    .ThenInclude(li => li!.Card)
+                        .ThenInclude(c => c!.Category)
+                .FirstAsync(si => si.Id == instance.Id);
+
+            return Results.Created($"/api/scheduled-instances/{instance.Id}", ToInstanceDto(reloaded));
+        });
+
+        // PUT /api/scheduled-instances/{id}
+        instanceGroup.MapPut("/{id:int}", async (int id, ScheduledInstance updatedInstance, LifePlannerDbContext db) =>
+        {
+            var inst = await db.ScheduledInstances.FirstOrDefaultAsync(s => s.Id == id);
+            if (inst is null) return Results.NotFound();
+
+            inst.Date = updatedInstance.Date;
+            inst.IsCompleted = updatedInstance.IsCompleted;
+            inst.Title = updatedInstance.Title;
+            inst.Description = updatedInstance.Description;
+            inst.Type = updatedInstance.Type;
+            inst.StartTime = updatedInstance.StartTime;
+            inst.EndTime = updatedInstance.EndTime;
+            inst.CategoryId = updatedInstance.CategoryId;
+            inst.ListItemId = updatedInstance.ListItemId;
+
+            await db.SaveChangesAsync();
+
+            // Reload it back with includes
+            var reloaded = await db.ScheduledInstances
+                .Include(si => si.Category)
+                .Include(si => si.ListItem)
+                    .ThenInclude(li => li!.Card)
+                        .ThenInclude(c => c!.Category)
+                .FirstAsync(si => si.Id == id);
+
+            return Results.Ok(ToInstanceDto(reloaded));
+        });
+
+        // DELETE /api/scheduled-instances/{id}
+        instanceGroup.MapDelete("/{id:int}", async (int id, LifePlannerDbContext db) =>
+        {
+            var inst = await db.ScheduledInstances.FirstOrDefaultAsync(s => s.Id == id);
+            if (inst is null) return Results.NotFound();
+
+            db.ScheduledInstances.Remove(inst);
+            await db.SaveChangesAsync();
+            return Results.NoContent();
+        });
     }
 
     private static CardDto ToDto(Card c) => new()
@@ -200,6 +298,26 @@ public static class CardEndpoints
         Id = inst.Id,
         Date = inst.Date,
         IsCompleted = inst.IsCompleted,
-        ListItemId = inst.ListItemId
+        UserId = inst.UserId,
+        ListItemId = inst.ListItemId,
+        CategoryId = inst.CategoryId,
+        Title = inst.ListItem?.Text ?? inst.Title,
+        Description = inst.Description,
+        Type = inst.Type,
+        StartTime = inst.StartTime,
+        EndTime = inst.EndTime,
+        Category = inst.Category != null ? new CategoryDto
+        {
+            Id = inst.Category.Id,
+            Name = inst.Category.Name,
+            Color = inst.Category.Color
+        } : (inst.ListItem?.Card?.Category != null ? new CategoryDto
+        {
+            Id = inst.ListItem.Card.Category.Id,
+            Name = inst.ListItem.Card.Category.Name,
+            Color = inst.ListItem.Card.Category.Color
+        } : null),
+        ParentCardTitle = inst.ListItem?.Card?.Title,
+        IntegrationSource = inst.ListItem?.Card?.IntegrationSource
     };
 }

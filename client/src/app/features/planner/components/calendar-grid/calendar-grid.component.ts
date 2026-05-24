@@ -55,8 +55,11 @@ import { CalendarService } from '../../../../core/services/calendar.service';
           @for (day of days(); track day.dateIso) {
             <div class="day-column glass-panel" [class.is-today]="day.isToday">
               <div class="day-header">
-                <span class="day-name">{{ day.date | date:'EEEE' }}</span>
-                <span class="day-date">{{ day.date | date:'MMM d' }}</span>
+                <div class="day-header-left">
+                  <span class="day-name">{{ day.date | date:'EEEE' }}</span>
+                  <span class="day-date">{{ day.date | date:'MMM d' }}</span>
+                </div>
+                <button class="add-event-btn" (click)="onAddClicked(day.dateIso)" title="Add calendar item">+</button>
               </div>
               
               <div 
@@ -86,34 +89,54 @@ import { CalendarService } from '../../../../core/services/calendar.service';
                 @for (entry of day.items; track entry.instance.id) {
                   <div 
                     class="event-card glass-panel item-event" 
-                    [style.border-left-color]="entry.card.category?.color ?? '#6366f1'"
+                    [style.border-left-color]="entry.instance.category?.color ?? entry.card?.category?.color ?? '#6366f1'"
+                    (click)="onEditClicked(entry)"
                     cdkDrag
                     [cdkDragData]="entry">
                     <div class="card-header">
-                      <button
-                        class="check-btn"
-                        [class.checked]="entry.instance.isCompleted"
-                        (click)="$event.stopPropagation(); onToggleInstance(entry.card.id, entry.item.id, entry.instance)"
-                        [attr.aria-label]="entry.instance.isCompleted ? 'Uncheck' : 'Check'">
-                        @if (entry.instance.isCompleted) { ✓ }
-                      </button>
-                      <h4 [class.completed]="entry.instance.isCompleted" [title]="entry.item.text">{{ entry.item.text }}</h4>
+                      <div class="header-left-side">
+                        <button
+                          class="check-btn"
+                          [class.checked]="entry.instance.isCompleted"
+                          (click)="$event.stopPropagation(); onToggleInstance(entry)"
+                          [attr.aria-label]="entry.instance.isCompleted ? 'Uncheck' : 'Check'">
+                          @if (entry.instance.isCompleted) { ✓ }
+                        </button>
+                        <div class="title-time-area">
+                          <h4 [class.completed]="entry.instance.isCompleted" [title]="entry.item?.text || entry.instance.title || ''">
+                            {{ entry.item?.text || entry.instance.title }}
+                          </h4>
+                          @if (entry.instance.startTime) {
+                            <span class="time-label">
+                              🕒 {{ getFormattedTimeLabel(entry.instance.startTime, entry.instance.endTime) }}
+                            </span>
+                          }
+                        </div>
+                      </div>
                       <div class="card-actions">
-                        @if (entry.card.integrationSource) {
-                          <span class="integration-source-badge" [class.ms-todo]="entry.card.integrationSource === 'MicrosoftTodo'" [class.google-tasks]="entry.card.integrationSource === 'GoogleTasks'">
-                            {{ entry.card.integrationSource === 'MicrosoftTodo' ? 'MS Todo' : 'Tasks' }}
+                        @if (entry.instance.type) {
+                          <span class="type-badge">{{ entry.instance.type }}</span>
+                        }
+                        @if (entry.card?.integrationSource) {
+                          <span class="integration-source-badge" [class.ms-todo]="entry.card?.integrationSource === 'MicrosoftTodo'" [class.google-tasks]="entry.card?.integrationSource === 'GoogleTasks'">
+                            {{ entry.card?.integrationSource === 'MicrosoftTodo' ? 'MS Todo' : 'Tasks' }}
                           </span>
                         }
-                        <span class="parent-card-badge" [title]="entry.card.title">{{ entry.card.title }}</span>
+                        @if (entry.card) {
+                          <span class="parent-card-badge" [title]="entry.card.title">{{ entry.card.title }}</span>
+                        }
                         <button
                           class="delete-btn"
-                          (click)="$event.stopPropagation(); onUnscheduleInstance(entry.card.id, entry.item.id, entry.instance.id)"
+                          (click)="$event.stopPropagation(); onUnscheduleInstance(entry)"
                           title="Unschedule item"
                           aria-label="Unschedule item">
                           ✕
                         </button>
                       </div>
                     </div>
+                    @if (entry.instance.description) {
+                      <p class="event-desc-preview">{{ entry.instance.description }}</p>
+                    }
                   </div>
                 }
                 
@@ -150,6 +173,7 @@ import { CalendarService } from '../../../../core/services/calendar.service';
                 [class.outside-month]="!day.isCurrentMonth"
                 [class.is-today]="day.isToday">
                 <div class="cell-header">
+                  <button class="cell-add-btn" (click)="onAddClicked(day.dateIso)" title="Add calendar item">+</button>
                   <span class="day-number">{{ day.date | date:'d' }}</span>
                 </div>
                 
@@ -173,24 +197,27 @@ import { CalendarService } from '../../../../core/services/calendar.service';
                   @for (entry of day.items; track entry.instance.id) {
                     <div 
                       class="event-pill" 
-                      [style.border-left-color]="entry.card.category?.color ?? '#6366f1'"
+                      [style.border-left-color]="entry.instance.category?.color ?? entry.card?.category?.color ?? '#6366f1'"
                       [class.completed]="entry.instance.isCompleted"
+                      (click)="onEditClicked(entry)"
                       cdkDrag
-                      [cdkDragData]="entry"
-                      (click)="onToggleInstance(entry.card.id, entry.item.id, entry.instance)">
+                      [cdkDragData]="entry">
                       
-                      <span class="pill-text" [title]="entry.item.text">
-                        @if (entry.card.integrationSource === 'MicrosoftTodo') {
+                      <span class="pill-text" [title]="entry.item?.text || entry.instance.title || ''">
+                        @if (entry.instance.startTime) {
+                          <span class="pill-time">{{ getFormattedTimeOnly(entry.instance.startTime) }}</span>
+                        }
+                        @if (entry.card?.integrationSource === 'MicrosoftTodo') {
                           <span class="pill-source-icon" style="color: #60a5fa; font-size: 0.65rem;">☑ </span>
-                        } @else if (entry.card.integrationSource === 'GoogleTasks') {
+                        } @else if (entry.card?.integrationSource === 'GoogleTasks') {
                           <span class="pill-source-icon" style="color: #38bdf8; font-size: 0.65rem;">☑ </span>
                         }
-                        {{ entry.item.text }}
+                        {{ entry.item?.text || entry.instance.title }}
                       </span>
                       
                       <button
                         class="unschedule-pill-btn"
-                        (click)="$event.stopPropagation(); onUnscheduleInstance(entry.card.id, entry.item.id, entry.instance.id)"
+                        (click)="$event.stopPropagation(); onUnscheduleInstance(entry)"
                         title="Unschedule item"
                         aria-label="Unschedule item">
                         ✕
@@ -243,7 +270,7 @@ import { CalendarService } from '../../../../core/services/calendar.service';
       font-weight: 600;
       color: var(--accent-secondary);
       background: rgba(236, 72, 153, 0.1);
-      padding: 0.15rem 0.5rem;
+      padding: 0.15rem 0.55rem;
       border-radius: var(--radius-full);
       width: fit-content;
       text-transform: uppercase;
@@ -333,12 +360,18 @@ import { CalendarService } from '../../../../core/services/calendar.service';
     }
     .day-header {
       display: flex;
-      flex-direction: column;
+      flex-direction: row;
       align-items: center;
+      justify-content: space-between;
       margin-bottom: 1rem;
       padding-bottom: 1rem;
       border-bottom: 1px solid rgba(255, 255, 255, 0.14);
       flex-shrink: 0;
+    }
+    .day-header-left {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
     }
     .day-name {
       font-weight: 600;
@@ -348,6 +381,27 @@ import { CalendarService } from '../../../../core/services/calendar.service';
       font-size: 0.85rem;
       color: var(--text-secondary);
     }
+    .add-event-btn {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: var(--text-secondary);
+      font-size: 1.1rem;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s;
+    }
+    .add-event-btn:hover {
+      background: var(--accent-primary);
+      color: white;
+      border-color: transparent;
+      transform: scale(1.1);
+    }
+
     .drop-zone {
       flex: 1;
       display: flex;
@@ -363,7 +417,7 @@ import { CalendarService } from '../../../../core/services/calendar.service';
       align-items: center;
       gap: 0.75rem;
       padding: 0.75rem;
-      background: rgba(66, 133, 244, 0.1);
+      background: rgba(66, 133, 244, 0.08);
       border-left: 4px solid #4285F4;
       border-radius: var(--radius-md);
       color: var(--text-primary);
@@ -403,12 +457,8 @@ import { CalendarService } from '../../../../core/services/calendar.service';
     .event-card {
       padding: 0.75rem;
       border-left: 4px solid transparent;
-      cursor: grab;
+      cursor: pointer;
       transition: box-shadow 0.2s, background-color 0.2s;
-    }
-    .event-card:active {
-      cursor: grabbing;
-      transform: scale(0.98);
     }
     .event-card:hover {
       box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
@@ -419,6 +469,25 @@ import { CalendarService } from '../../../../core/services/calendar.service';
       justify-content: space-between;
       align-items: flex-start;
       gap: 0.5rem;
+    }
+    .header-left-side {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.5rem;
+      flex: 1;
+      min-width: 0;
+    }
+    .title-time-area {
+      display: flex;
+      flex-direction: column;
+      gap: 0.15rem;
+      flex: 1;
+      min-width: 0;
+    }
+    .time-label {
+      font-size: 0.7rem;
+      color: var(--accent-secondary);
+      font-weight: 500;
     }
     .check-btn {
       width: 16px;
@@ -447,6 +516,7 @@ import { CalendarService } from '../../../../core/services/calendar.service';
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+      line-height: 1.2;
     }
     .event-card h4.completed {
       color: var(--text-muted);
@@ -454,8 +524,21 @@ import { CalendarService } from '../../../../core/services/calendar.service';
     }
     .card-actions {
       display: flex;
-      gap: 0.35rem;
+      gap: 0.3rem;
       align-items: center;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+    .type-badge {
+      font-size: 0.62rem;
+      font-weight: 700;
+      padding: 0.08rem 0.3rem;
+      border-radius: var(--radius-sm);
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text-secondary);
+      border: 1px solid rgba(255, 255, 255, 0.1);
     }
     .parent-card-badge {
       font-size: 0.68rem;
@@ -487,6 +570,15 @@ import { CalendarService } from '../../../../core/services/calendar.service';
     .delete-btn:hover {
       color: #ef4444;
       background: rgba(239, 68, 68, 0.15);
+    }
+    .event-desc-preview {
+      margin: 0.4rem 0 0 0;
+      font-size: 0.76rem;
+      color: var(--text-muted);
+      line-height: 1.35;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .empty-timeline {
@@ -567,10 +659,26 @@ import { CalendarService } from '../../../../core/services/calendar.service';
     }
     .cell-header {
       display: flex;
-      justify-content: flex-end;
+      justify-content: space-between;
       align-items: center;
       margin-bottom: 0.35rem;
       flex-shrink: 0;
+    }
+    .cell-add-btn {
+      opacity: 0;
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      cursor: pointer;
+      line-height: 1;
+      transition: opacity 0.15s, color 0.15s;
+    }
+    .day-cell:hover .cell-add-btn {
+      opacity: 1;
+    }
+    .cell-add-btn:hover {
+      color: var(--text-primary);
     }
     .day-number {
       font-size: 0.75rem;
@@ -629,7 +737,7 @@ import { CalendarService } from '../../../../core/services/calendar.service';
       border-radius: var(--radius-sm);
       color: var(--text-primary);
       font-size: 0.72rem;
-      cursor: grab;
+      cursor: pointer;
       position: relative;
       flex-shrink: 0;
       transition: all 0.15s;
@@ -637,9 +745,6 @@ import { CalendarService } from '../../../../core/services/calendar.service';
     }
     .event-pill:hover {
       background: rgba(255, 255, 255, 0.06);
-    }
-    .event-pill:active {
-      cursor: grabbing;
     }
     .event-pill.completed {
       opacity: 0.55;
@@ -654,6 +759,12 @@ import { CalendarService } from '../../../../core/services/calendar.service';
       text-overflow: ellipsis;
       white-space: nowrap;
       flex: 1;
+    }
+    .pill-time {
+      font-weight: bold;
+      color: var(--accent-secondary);
+      margin-right: 0.25rem;
+      font-size: 0.68rem;
     }
     .unschedule-pill-btn {
       opacity: 0;
@@ -711,8 +822,10 @@ export class CalendarGridComponent {
   
   @Input() connectedTo: string[] = [];
   @Output() itemDropped = new EventEmitter<CdkDragDrop<any>>();
-  @Output() instanceToggled = new EventEmitter<{ cardId: number; itemId: number; instance: ScheduledInstance }>();
-  @Output() instanceUnscheduled = new EventEmitter<{ cardId: number; itemId: number; instanceId: number }>();
+  @Output() instanceToggled = new EventEmitter<{ instance: ScheduledInstance }>();
+  @Output() instanceUnscheduled = new EventEmitter<number>();
+  @Output() addClicked = new EventEmitter<string>();
+  @Output() editClicked = new EventEmitter<{ instance: ScheduledInstance; item?: ListItem; card?: Card }>();
 
   readonly days = this.calendarService.daysGrid;
 
@@ -720,13 +833,39 @@ export class CalendarGridComponent {
     this.itemDropped.emit(event);
   }
 
-  onToggleInstance(cardId: number, itemId: number, instance: ScheduledInstance) {
-    this.instanceToggled.emit({ cardId, itemId, instance });
+  onToggleInstance(entry: { instance: ScheduledInstance }) {
+    this.instanceToggled.emit({ instance: entry.instance });
   }
 
-  onUnscheduleInstance(cardId: number, itemId: number, instanceId: number) {
-    this.instanceUnscheduled.emit({ cardId, itemId, instanceId });
+  onUnscheduleInstance(entry: { instance: ScheduledInstance }) {
+    this.instanceUnscheduled.emit(entry.instance.id);
+  }
+
+  onAddClicked(dateIso: string) {
+    this.addClicked.emit(dateIso);
+  }
+
+  onEditClicked(entry: { instance: ScheduledInstance; item?: ListItem; card?: Card }) {
+    this.editClicked.emit(entry);
+  }
+
+  getFormattedTimeLabel(startTimeStr?: string, endTimeStr?: string): string {
+    if (!startTimeStr) return '';
+    const start = this.getFormattedTimeOnly(startTimeStr);
+    if (endTimeStr) {
+      const end = this.getFormattedTimeOnly(endTimeStr);
+      return `${start} - ${end}`;
+    }
+    return start;
+  }
+
+  getFormattedTimeOnly(dateTimeStr: string): string {
+    try {
+      const parts = dateTimeStr.split('T');
+      if (parts.length > 1) {
+        return parts[1].substring(0, 5); // "HH:mm"
+      }
+    } catch {}
+    return '';
   }
 }
-
-

@@ -12,11 +12,12 @@ import { Card, ListItem, ScheduledInstance } from '../../core/models/planner.mod
 import { CdkDragDrop, DragDropModule } from '@angular/cdk/drag-drop';
 import { NotificationService } from '../../core/services/notification.service';
 import { ActivatedRoute, Router } from '@angular/router';
+import { CalendarInstanceDialogComponent, CalendarInstanceFormData } from './components/calendar-instance-dialog/calendar-instance-dialog.component';
 
 @Component({
   selector: 'app-planner',
   standalone: true,
-  imports: [CommonModule, CardSidebarComponent, CalendarGridComponent, CreateCardFormComponent, IntegrationsDialogComponent, DragDropModule],
+  imports: [CommonModule, CardSidebarComponent, CalendarGridComponent, CreateCardFormComponent, IntegrationsDialogComponent, DragDropModule, CalendarInstanceDialogComponent],
   template: `
     <div class="planner-layout">
       <app-card-sidebar
@@ -32,6 +33,8 @@ import { ActivatedRoute, Router } from '@angular/router';
       <app-calendar-grid
         [connectedTo]="allDropLists()"
         (itemDropped)="onItemDropped($event)"
+        (addClicked)="onAddCalendarItem($event)"
+        (editClicked)="onEditCalendarItem($event)"
         (instanceToggled)="onInstanceToggled($event)"
         (instanceUnscheduled)="onInstanceUnscheduled($event)">
       </app-calendar-grid>
@@ -50,6 +53,16 @@ import { ActivatedRoute, Router } from '@angular/router';
         (closed)="isIntegrationsOpen.set(false)"
         (synced)="onIntegrationsSynced()">
       </app-integrations-dialog>
+    }
+
+    @if (isCalendarDialogOpen()) {
+      <app-calendar-instance-dialog
+        [instance]="activeInstance()"
+        [defaultDate]="defaultDate()"
+        (save)="onSaveCalendarItem($event)"
+        (delete)="onDeleteCalendarItem($event)"
+        (cancel)="isCalendarDialogOpen.set(false)">
+      </app-calendar-instance-dialog>
     }
   `,
   styles: [`
@@ -96,6 +109,12 @@ export class PlannerComponent {
   readonly isFormOpen = signal(false);
   readonly editingCard = signal<Card | null>(null);
   readonly isIntegrationsOpen = signal(false);
+
+  readonly isCalendarDialogOpen = signal(false);
+  readonly activeInstance = signal<ScheduledInstance | null>(null);
+  readonly activeItem = signal<ListItem | null>(null);
+  readonly activeCard = signal<Card | null>(null);
+  readonly defaultDate = signal<string | null>(null);
 
   constructor() {
     effect(() => {
@@ -191,9 +210,18 @@ export class PlannerComponent {
             next: () => this.notifications.success(`Rescheduled "${data.item.text}" to ${dateStr}`)
           });
         } else {
-          this.cardService.scheduleItemInstance(data.card.id, data.item.id, targetDateIso).subscribe({
-            next: () => this.notifications.success(`Scheduled "${data.item.text}" on ${dateStr}`)
-          });
+          const existingInstances = this.cardService.scheduledInstances().filter(si => si.listItemId === data.item.id);
+          if (data.card.isChecklist && existingInstances.length > 0) {
+            // Limit checklist items to 1 instance: move the existing scheduled instance
+            const existing = existingInstances[0];
+            this.cardService.updateScheduledInstance(existing.id, { date: targetDateIso }).subscribe({
+              next: () => this.notifications.success(`Rescheduled "${data.item.text}" to ${dateStr}`)
+            });
+          } else {
+            this.cardService.scheduleItemInstance(data.card.id, data.item.id, targetDateIso).subscribe({
+              next: () => this.notifications.success(`Scheduled "${data.item.text}" on ${dateStr}`)
+            });
+          }
         }
       } else if (currId.startsWith('card-items-')) {
         if (data.instance) {
@@ -224,12 +252,12 @@ export class PlannerComponent {
     this.cardService.reorderCards(cards);
   }
 
-  onInstanceToggled({ cardId, itemId, instance }: { cardId: number; itemId: number; instance: ScheduledInstance }): void {
-    this.cardService.updateItemInstance(cardId, itemId, instance.id, { isCompleted: !instance.isCompleted }).subscribe();
+  onInstanceToggled({ instance }: { instance: ScheduledInstance }): void {
+    this.cardService.updateScheduledInstance(instance.id, { isCompleted: !instance.isCompleted }).subscribe();
   }
 
-  onInstanceUnscheduled({ cardId, itemId, instanceId }: { cardId: number; itemId: number; instanceId: number }): void {
-    this.cardService.deleteItemInstance(cardId, itemId, instanceId).subscribe();
+  onInstanceUnscheduled(instanceId: number): void {
+    this.cardService.deleteScheduledInstance(instanceId).subscribe();
   }
 
   openIntegrations(): void {
@@ -241,5 +269,91 @@ export class PlannerComponent {
     if (user) {
       this.cardService.loadCards(user.id);
     }
+  }
+
+  onAddCalendarItem(dateIso: string): void {
+    this.activeInstance.set(null);
+    this.activeItem.set(null);
+    this.activeCard.set(null);
+    this.defaultDate.set(dateIso);
+    this.isCalendarDialogOpen.set(true);
+  }
+
+  onEditCalendarItem(entry: { instance: ScheduledInstance; item?: ListItem; card?: Card }): void {
+    this.activeInstance.set(entry.instance);
+    this.activeItem.set(entry.item || null);
+    this.activeCard.set(entry.card || null);
+    this.defaultDate.set(null);
+    this.isCalendarDialogOpen.set(true);
+  }
+
+  onSaveCalendarItem(formData: CalendarInstanceFormData): void {
+    const userId = this.userService.currentUser()?.id;
+    if (!userId) return;
+
+    if (formData.id) {
+      // Edit mode: update parent text if linked
+      const active = this.activeInstance();
+      const item = this.activeItem();
+      const card = this.activeCard();
+      if (active && item && card && active.listItemId) {
+        if (item.text !== formData.title) {
+          this.cardService.updateListItem(card.id, {
+            ...item,
+            text: formData.title
+          }).subscribe();
+        }
+      }
+
+      // Update the scheduled instance properties
+      this.cardService.updateScheduledInstance(formData.id, {
+        date: formData.date,
+        isCompleted: formData.isCompleted,
+        title: formData.title,
+        description: formData.description,
+        type: formData.type,
+        startTime: formData.startTime,
+        endTime: formData.endTime,
+        categoryId: formData.categoryId
+      }).subscribe();
+    } else {
+      // Create mode
+      if (formData.cardId) {
+        // Linked event: add item to card, then schedule
+        this.cardService.addListItem(formData.cardId, formData.title).subscribe(item => {
+          this.cardService.createScheduledInstance({
+            userId,
+            listItemId: item.id,
+            date: formData.date,
+            isCompleted: formData.isCompleted,
+            title: formData.title,
+            description: formData.description,
+            type: formData.type,
+            startTime: formData.startTime,
+            endTime: formData.endTime,
+            categoryId: formData.categoryId
+          }).subscribe();
+        });
+      } else {
+        // Standalone event
+        this.cardService.createScheduledInstance({
+          userId,
+          date: formData.date,
+          isCompleted: formData.isCompleted,
+          title: formData.title,
+          description: formData.description,
+          type: formData.type,
+          startTime: formData.startTime,
+          endTime: formData.endTime,
+          categoryId: formData.categoryId
+        }).subscribe();
+      }
+    }
+    this.isCalendarDialogOpen.set(false);
+  }
+
+  onDeleteCalendarItem(id: number): void {
+    this.cardService.deleteScheduledInstance(id).subscribe();
+    this.isCalendarDialogOpen.set(false);
   }
 }

@@ -373,7 +373,14 @@ public class IntegrationService : IIntegrationService
             Id = inst.Id,
             Date = inst.Date,
             IsCompleted = inst.IsCompleted,
-            ListItemId = inst.ListItemId
+            UserId = inst.UserId,
+            ListItemId = inst.ListItemId,
+            CategoryId = inst.CategoryId,
+            Title = inst.Title,
+            Description = inst.Description,
+            Type = inst.Type,
+            StartTime = inst.StartTime,
+            EndTime = inst.EndTime
         }).ToList() ?? new()
     };
 }

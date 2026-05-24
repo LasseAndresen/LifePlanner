@@ -15,7 +15,17 @@ export interface ScheduledInstance {
   id: number;
   date: string;
   isCompleted: boolean;
-  listItemId: number;
+  userId: number;
+  listItemId?: number;
+  categoryId?: number;
+  category?: Category;
+  title?: string;
+  description?: string;
+  type?: string;
+  startTime?: string;
+  endTime?: string;
+  parentCardTitle?: string;
+  integrationSource?: string;
 }
 
 export interface ListItem {
@@ -59,7 +69,7 @@ export interface DayColumn {
   date: Date;
   dateIso: string;
   label: string;
-  items: { instance: ScheduledInstance; item: ListItem; card: Card }[];
+  items: { instance: ScheduledInstance; item?: ListItem; card?: Card }[];
   googleEvents: GoogleCalendarEvent[];
   isCurrentMonth: boolean;
   isToday: boolean;
