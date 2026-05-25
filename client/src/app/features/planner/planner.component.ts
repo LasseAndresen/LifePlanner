@@ -349,9 +349,14 @@ export class PlannerComponent {
         if (!this.hasAutoSynced) {
           this.integrationService.getStatus(user.id).subscribe({
             next: (status) => {
-              if (status.microsoftTodoConnected && !this.hasAutoSynced) {
+              if ((status.microsoftTodoConnected || status.googleTasksConnected) && !this.hasAutoSynced) {
                 this.hasAutoSynced = true;
-                this.syncMicrosoftTodo(user.id);
+                if (status.microsoftTodoConnected) {
+                  this.syncMicrosoftTodo(user.id);
+                }
+                if (status.googleTasksConnected) {
+                  this.syncGoogleTasks(user.id);
+                }
               }
             },
             error: (err) => {
@@ -776,6 +781,17 @@ export class PlannerComponent {
       },
       error: (err) => {
         console.error('Failed to auto-sync Microsoft To-Do:', err);
+      }
+    });
+  }
+
+  private syncGoogleTasks(userId: number): void {
+    this.integrationService.syncGoogleTasks(userId).subscribe({
+      next: () => {
+        this.cardService.loadCards(userId);
+      },
+      error: (err) => {
+        console.error('Failed to auto-sync Google Tasks:', err);
       }
     });
   }

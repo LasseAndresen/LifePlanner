@@ -11,6 +11,7 @@ public interface IIntegrationService
     // Google Tasks specific
     Task<List<GoogleTaskListDto>> GetGoogleTaskListsAsync(int userId);
     Task<List<CardDto>> ImportGoogleTaskListsAsync(int userId, List<string> externalIds);
+    Task<List<CardDto>> SyncGoogleTasksAsync(int userId);
     
     // Microsoft TODO specific
     Task<CardDto> SyncMicrosoftTodoAsync(int userId);

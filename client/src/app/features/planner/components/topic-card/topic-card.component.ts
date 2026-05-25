@@ -55,6 +55,15 @@ import { IntegrationService } from '../../../../core/services/integration.servic
                 aria-label="Sync tasks">
                 ↻
               </button>
+            } @else if (card.integrationSource === 'GoogleTasks') {
+              <button
+                class="sync-card-btn"
+                [class.syncing]="isSyncing"
+                (click)="$event.stopPropagation(); syncGoogleTasks()"
+                title="Sync tasks now"
+                aria-label="Sync tasks">
+                ↻
+              </button>
             }
             <span class="integration-badge" [class.ms-todo]="card.integrationSource === 'MicrosoftTodo'" [class.google-tasks]="card.integrationSource === 'GoogleTasks'">
               {{ card.integrationSource === 'MicrosoftTodo' ? 'MS Todo' : 'Google Tasks' }}
@@ -115,11 +124,11 @@ import { IntegrationService } from '../../../../core/services/integration.servic
               } @else {
                 <span
                   class="item-text"
-                  (click)="(!card.integrationSource || card.integrationSource === 'MicrosoftTodo') && startEditItem(item)"
-                  [title]="(card.integrationSource && card.integrationSource !== 'MicrosoftTodo') ? 'Read-only integration item' : 'Click to edit'">
+                  (click)="(!card.integrationSource || card.integrationSource === 'MicrosoftTodo' || card.integrationSource === 'GoogleTasks') && startEditItem(item)"
+                  [title]="(card.integrationSource && card.integrationSource !== 'MicrosoftTodo' && card.integrationSource !== 'GoogleTasks') ? 'Read-only integration item' : 'Click to edit'">
                   {{ item.text }}
                 </span>
-                @if (!card.integrationSource || card.integrationSource === 'MicrosoftTodo') {
+                @if (!card.integrationSource || card.integrationSource === 'MicrosoftTodo' || card.integrationSource === 'GoogleTasks') {
                   <button class="delete-item-btn" (click)="deleteItem(item)" title="Remove item">✕</button>
                 }
               }
@@ -130,7 +139,7 @@ import { IntegrationService } from '../../../../core/services/integration.servic
           }
         </ul>
 
-        @if ((!card.integrationSource || card.integrationSource === 'MicrosoftTodo') && !isCollapsed) {
+        @if ((!card.integrationSource || card.integrationSource === 'MicrosoftTodo' || card.integrationSource === 'GoogleTasks') && !isCollapsed) {
           @if (addingItem) {
             <div class="add-item-row">
               <input
@@ -695,6 +704,23 @@ export class TopicCardComponent implements OnInit {
       error: (err) => {
         this.isSyncing = false;
         this.notifications.show('Could not sync Microsoft To-Do tasks.', 'error');
+        console.error(err);
+      }
+    });
+  }
+
+  protected syncGoogleTasks(): void {
+    if (this.isSyncing) return;
+    this.isSyncing = true;
+    this.integrationService.syncGoogleTasks(this.card.userId).subscribe({
+      next: () => {
+        this.isSyncing = false;
+        this.notifications.show('Google Tasks synced successfully!', 'success');
+        this.cardService.loadCards(this.card.userId);
+      },
+      error: (err) => {
+        this.isSyncing = false;
+        this.notifications.show('Could not sync Google Tasks.', 'error');
         console.error(err);
       }
     });

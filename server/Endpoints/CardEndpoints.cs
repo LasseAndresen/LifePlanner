@@ -114,7 +114,7 @@ public static class CardEndpoints
 
         // --- List Item endpoints ---
 
-        group.MapPost("/{cardId}/items", async (int cardId, ListItem item, LifePlannerDbContext db, IMicrosoftTodoService todoService, ILoggerFactory loggerFactory) =>
+        group.MapPost("/{cardId}/items", async (int cardId, ListItem item, LifePlannerDbContext db, IMicrosoftTodoService todoService, IGoogleTasksService googleTasksService, ILoggerFactory loggerFactory) =>
         {
             var logger = loggerFactory.CreateLogger("CardEndpoints");
             var card = await db.Cards.Include(c => c.User).FirstOrDefaultAsync(c => c.Id == cardId);
@@ -137,6 +137,20 @@ public static class CardEndpoints
                     logger.LogError(ex, "Error creating task in Microsoft To-Do for CardId {CardId}", cardId);
                 }
             }
+            else if (card.IntegrationSource == "GoogleTasks" &&
+                     !string.IsNullOrEmpty(card.IntegrationExternalId) &&
+                     card.User != null && card.User.GoogleTasksConnected)
+            {
+                try
+                {
+                    var externalId = await googleTasksService.CreateTaskAsync(card.User, card.IntegrationExternalId, item.Text);
+                    item.IntegrationExternalId = externalId;
+                }
+                catch (System.Exception ex)
+                {
+                    logger.LogError(ex, "Error creating task in Google Tasks for CardId {CardId}", cardId);
+                }
+            }
 
             db.ListItems.Add(item);
             await db.SaveChangesAsync();
@@ -144,7 +158,7 @@ public static class CardEndpoints
             return Results.Created($"/api/cards/{cardId}/items/{item.Id}", ToItemDto(item));
         }).WithTags("Cards");
 
-        group.MapPut("/{cardId}/items/{itemId}", async (int cardId, int itemId, ListItem updatedItem, LifePlannerDbContext db, IMicrosoftTodoService todoService, ILoggerFactory loggerFactory) =>
+        group.MapPut("/{cardId}/items/{itemId}", async (int cardId, int itemId, ListItem updatedItem, LifePlannerDbContext db, IMicrosoftTodoService todoService, IGoogleTasksService googleTasksService, ILoggerFactory loggerFactory) =>
         {
             var logger = loggerFactory.CreateLogger("CardEndpoints");
 
@@ -201,13 +215,33 @@ public static class CardEndpoints
                     logger.LogError(ex, "Error syncing task update with Microsoft To-Do for ItemId {ItemId}", itemId);
                 }
             }
+            else if ((completionChanged || renameChanged) && item.Card?.IntegrationSource == "GoogleTasks" &&
+                     !string.IsNullOrEmpty(item.IntegrationExternalId) &&
+                     !string.IsNullOrEmpty(item.Card.IntegrationExternalId) &&
+                     item.Card.User != null && item.Card.User.GoogleTasksConnected)
+            {
+                try
+                {
+                    await googleTasksService.UpdateTaskAsync(
+                        item.Card.User,
+                        item.Card.IntegrationExternalId,
+                        item.IntegrationExternalId,
+                        title: renameChanged ? item.Text : null,
+                        isCompleted: completionChanged ? (bool?)item.IsCompleted : null
+                    );
+                }
+                catch (System.Exception ex)
+                {
+                    logger.LogError(ex, "Error syncing task update with Google Tasks for ItemId {ItemId}", itemId);
+                }
+            }
 
             await db.SaveChangesAsync();
 
             return Results.Ok(ToItemDto(item));
         }).WithTags("Cards");
 
-        group.MapDelete("/{cardId}/items/{itemId}", async (int cardId, int itemId, LifePlannerDbContext db, IMicrosoftTodoService todoService, ILoggerFactory loggerFactory) =>
+        group.MapDelete("/{cardId}/items/{itemId}", async (int cardId, int itemId, LifePlannerDbContext db, IMicrosoftTodoService todoService, IGoogleTasksService googleTasksService, ILoggerFactory loggerFactory) =>
         {
             var logger = loggerFactory.CreateLogger("CardEndpoints");
             var item = await db.ListItems
@@ -229,6 +263,20 @@ public static class CardEndpoints
                 catch (System.Exception ex)
                 {
                     logger.LogError(ex, "Error deleting task from Microsoft To-Do for ItemId {ItemId}", itemId);
+                }
+            }
+            else if (item.Card?.IntegrationSource == "GoogleTasks" && 
+                     !string.IsNullOrEmpty(item.IntegrationExternalId) && 
+                     !string.IsNullOrEmpty(item.Card.IntegrationExternalId) && 
+                     item.Card.User != null && item.Card.User.GoogleTasksConnected)
+            {
+                try
+                {
+                    await googleTasksService.DeleteTaskAsync(item.Card.User, item.Card.IntegrationExternalId, item.IntegrationExternalId);
+                }
+                catch (System.Exception ex)
+                {
+                    logger.LogError(ex, "Error deleting task from Google Tasks for ItemId {ItemId}", itemId);
                 }
             }
 
@@ -279,7 +327,7 @@ public static class CardEndpoints
             return Results.Created($"/api/cards/{cardId}/items/{itemId}/instances/{newInstance.Id}", ToInstanceDto(newInstance));
         }).WithTags("Cards");
 
-        group.MapPut("/{cardId}/items/{itemId}/instances/{instanceId}", async (int cardId, int itemId, int instanceId, ScheduledInstance updatedInstance, LifePlannerDbContext db, IMicrosoftTodoService todoService, ILoggerFactory loggerFactory) =>
+        group.MapPut("/{cardId}/items/{itemId}/instances/{instanceId}", async (int cardId, int itemId, int instanceId, ScheduledInstance updatedInstance, LifePlannerDbContext db, IMicrosoftTodoService todoService, IGoogleTasksService googleTasksService, ILoggerFactory loggerFactory) =>
         {
             var logger = loggerFactory.CreateLogger("CardEndpoints");
             var inst = await db.ScheduledInstances
@@ -321,6 +369,20 @@ public static class CardEndpoints
                     catch (System.Exception ex)
                     {
                         logger.LogError(ex, "Error syncing task completion with Microsoft To-Do for InstanceId {InstanceId}", instanceId);
+                    }
+                }
+                else if (card?.IntegrationSource == "GoogleTasks" &&
+                         !string.IsNullOrEmpty(inst.ListItem.IntegrationExternalId) &&
+                         !string.IsNullOrEmpty(card.IntegrationExternalId) &&
+                         card.User != null && card.User.GoogleTasksConnected)
+                {
+                    try
+                    {
+                        await googleTasksService.UpdateTaskAsync(card.User, card.IntegrationExternalId, inst.ListItem.IntegrationExternalId, isCompleted: updatedInstance.IsCompleted);
+                    }
+                    catch (System.Exception ex)
+                    {
+                        logger.LogError(ex, "Error syncing task completion with Google Tasks for InstanceId {InstanceId}", instanceId);
                     }
                 }
             }
@@ -389,7 +451,7 @@ public static class CardEndpoints
         });
 
         // PUT /api/scheduled-instances/{id}
-        instanceGroup.MapPut("/{id:int}", async (int id, ScheduledInstance updatedInstance, LifePlannerDbContext db, IMicrosoftTodoService todoService, ILoggerFactory loggerFactory) =>
+        instanceGroup.MapPut("/{id:int}", async (int id, ScheduledInstance updatedInstance, LifePlannerDbContext db, IMicrosoftTodoService todoService, IGoogleTasksService googleTasksService, ILoggerFactory loggerFactory) =>
         {
             var logger = loggerFactory.CreateLogger("CardEndpoints");
             var inst = await db.ScheduledInstances
@@ -400,7 +462,6 @@ public static class CardEndpoints
             if (inst is null) return Results.NotFound();
 
             bool completionChanged = inst.IsCompleted != updatedInstance.IsCompleted;
-
             inst.Date = updatedInstance.Date;
             inst.IsCompleted = updatedInstance.IsCompleted;
             inst.Title = updatedInstance.Title;
@@ -438,6 +499,20 @@ public static class CardEndpoints
                     catch (System.Exception ex)
                     {
                         logger.LogError(ex, "Error syncing task completion with Microsoft To-Do for InstanceId {InstanceId}", id);
+                    }
+                }
+                else if (card?.IntegrationSource == "GoogleTasks" &&
+                         !string.IsNullOrEmpty(inst.ListItem.IntegrationExternalId) &&
+                         !string.IsNullOrEmpty(card.IntegrationExternalId) &&
+                         card.User != null && card.User.GoogleTasksConnected)
+                {
+                    try
+                    {
+                        await googleTasksService.UpdateTaskAsync(card.User, card.IntegrationExternalId, inst.ListItem.IntegrationExternalId, isCompleted: updatedInstance.IsCompleted);
+                    }
+                    catch (System.Exception ex)
+                    {
+                        logger.LogError(ex, "Error syncing task completion with Google Tasks for InstanceId {InstanceId}", id);
                     }
                 }
             }

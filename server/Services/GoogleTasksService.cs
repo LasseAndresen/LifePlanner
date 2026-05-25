@@ -40,4 +40,46 @@ public class GoogleTasksService : IGoogleTasksService
         var result = await request.ExecuteAsync();
         return result.Items ?? new List<GoogleTask>();
     }
+
+    public async System.Threading.Tasks.Task<string> CreateTaskAsync(User user, string taskListId, string title)
+    {
+        var service = GetService(user);
+        var newTask = new GoogleTask
+        {
+            Title = title
+        };
+        var request = service.Tasks.Insert(newTask, taskListId);
+        var result = await request.ExecuteAsync();
+        return result.Id;
+    }
+
+    public async System.Threading.Tasks.Task UpdateTaskAsync(User user, string taskListId, string taskId, string? title = null, bool? isCompleted = null)
+    {
+        var service = GetService(user);
+        var taskToUpdate = new GoogleTask();
+
+        if (title != null)
+        {
+            taskToUpdate.Title = title;
+        }
+
+        if (isCompleted.HasValue)
+        {
+            taskToUpdate.Status = isCompleted.Value ? "completed" : "needsAction";
+            if (!isCompleted.Value)
+            {
+                taskToUpdate.Completed = null;
+            }
+        }
+
+        var request = service.Tasks.Patch(taskToUpdate, taskListId, taskId);
+        await request.ExecuteAsync();
+    }
+
+    public async System.Threading.Tasks.Task DeleteTaskAsync(User user, string taskListId, string taskId)
+    {
+        var service = GetService(user);
+        var request = service.Tasks.Delete(taskListId, taskId);
+        await request.ExecuteAsync();
+    }
 }

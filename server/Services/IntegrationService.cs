@@ -358,6 +358,23 @@ public class IntegrationService : IIntegrationService
         return keepCards.Select(ToDto).ToList();
     }
 
+    public async Task<List<CardDto>> SyncGoogleTasksAsync(int userId)
+    {
+        _logger.LogInformation("Starting Google Tasks synchronization for User {UserId}.", userId);
+        var externalIds = await _context.Cards
+            .Where(c => c.UserId == userId && c.IntegrationSource == "GoogleTasks" && c.IntegrationExternalId != null)
+            .Select(c => c.IntegrationExternalId!)
+            .ToListAsync();
+
+        if (!externalIds.Any())
+        {
+            _logger.LogInformation("No imported Google Tasks lists found to sync for User {UserId}.", userId);
+            return new List<CardDto>();
+        }
+
+        return await ImportGoogleTaskListsAsync(userId, externalIds);
+    }
+
     public async Task<CardDto> SyncMicrosoftTodoAsync(int userId)
     {
         _logger.LogInformation("Starting Microsoft To-Do synchronization for User {UserId}.", userId);

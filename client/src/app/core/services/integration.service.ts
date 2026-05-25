@@ -45,4 +45,8 @@ export class IntegrationService {
   syncTodo(userId: number): Observable<Card> {
     return this.http.post<Card>(`${environment.apiBaseUrl}/api/integrations/todo/sync/${userId}`, {});
   }
+
+  syncGoogleTasks(userId: number): Observable<Card[]> {
+    return this.http.post<Card[]>(`${environment.apiBaseUrl}/api/integrations/google-tasks/sync/${userId}`, {});
+  }
 }

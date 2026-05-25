@@ -74,6 +74,19 @@ public static class IntegrationEndpoints
             }
         });
 
+        group.MapPost("/google-tasks/sync/{userId:int}", async (int userId, IIntegrationService service) =>
+        {
+            try
+            {
+                var cards = await service.SyncGoogleTasksAsync(userId);
+                return Results.Ok(cards);
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(ex.Message);
+            }
+        });
+
         group.MapPost("/todo/sync/{userId:int}", async (int userId, IIntegrationService service) =>
         {
             try
