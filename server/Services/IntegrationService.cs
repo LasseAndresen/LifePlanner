@@ -301,7 +301,8 @@ public class IntegrationService : IIntegrationService
                     {
                         Text = task.Title,
                         IsCompleted = task.Status == "completed",
-                        IntegrationExternalId = task.Id
+                        IntegrationExternalId = task.Id,
+                        Position = task.Position
                     }).ToList()
                 };
                 _context.Cards.Add(newCard);
@@ -334,13 +335,15 @@ public class IntegrationService : IIntegrationService
                         {
                             Text = task.Title,
                             IsCompleted = isTaskCompleted,
-                            IntegrationExternalId = task.Id
+                            IntegrationExternalId = task.Id,
+                            Position = task.Position
                         });
                     }
                     else
                     {
                         existingItem.Text = task.Title;
                         existingItem.IsCompleted = isTaskCompleted;
+                        existingItem.Position = task.Position;
                     }
                 }
             }
@@ -503,7 +506,11 @@ public class IntegrationService : IIntegrationService
         Description = c.Description,
         ScheduledDate = c.ScheduledDate,
         IsChecklist = c.IsChecklist,
-        ListItems = c.ListItems.Select(ToItemDto).ToList(),
+        ListItems = c.ListItems
+            .OrderBy(li => li.Position)
+            .ThenBy(li => li.Id)
+            .Select(ToItemDto)
+            .ToList(),
         CategoryId = c.CategoryId,
         UserId = c.UserId,
         IntegrationSource = c.IntegrationSource,
@@ -525,6 +532,7 @@ public class IntegrationService : IIntegrationService
         IsCompleted = i.IsCompleted,
         CardId = i.CardId,
         IntegrationExternalId = i.IntegrationExternalId,
+        Position = i.Position,
         ScheduledInstances = i.ScheduledInstances?.Select(inst => new ScheduledInstanceDto
         {
             Id = inst.Id,

@@ -11,6 +11,7 @@ public class ListItem
     public Card? Card { get; set; }
     
     public string? IntegrationExternalId { get; set; }
+    public string? Position { get; set; }
     
     public ICollection<ScheduledInstance> ScheduledInstances { get; set; } = new List<ScheduledInstance>();
 }

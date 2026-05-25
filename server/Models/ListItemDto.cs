@@ -7,5 +7,6 @@ public class ListItemDto
     public bool IsCompleted { get; set; }
     public int CardId { get; set; }
     public string? IntegrationExternalId { get; set; }
+    public string? Position { get; set; }
     public List<ScheduledInstanceDto> ScheduledInstances { get; set; } = new();
 }

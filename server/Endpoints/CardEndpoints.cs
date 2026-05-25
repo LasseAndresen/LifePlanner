@@ -143,8 +143,9 @@ public static class CardEndpoints
             {
                 try
                 {
-                    var externalId = await googleTasksService.CreateTaskAsync(card.User, card.IntegrationExternalId, item.Text);
-                    item.IntegrationExternalId = externalId;
+                    var googleTask = await googleTasksService.CreateTaskAsync(card.User, card.IntegrationExternalId, item.Text);
+                    item.IntegrationExternalId = googleTask.Id;
+                    item.Position = googleTask.Position;
                 }
                 catch (System.Exception ex)
                 {
@@ -550,7 +551,11 @@ public static class CardEndpoints
         Description = c.Description,
         ScheduledDate = c.ScheduledDate,
         IsChecklist = c.IsChecklist,
-        ListItems = c.ListItems.Select(ToItemDto).ToList(),
+        ListItems = c.ListItems
+            .OrderBy(li => li.Position)
+            .ThenBy(li => li.Id)
+            .Select(ToItemDto)
+            .ToList(),
         CategoryId = c.CategoryId,
         UserId = c.UserId,
         IntegrationSource = c.IntegrationSource,
@@ -572,6 +577,7 @@ public static class CardEndpoints
         IsCompleted = i.IsCompleted,
         CardId = i.CardId,
         IntegrationExternalId = i.IntegrationExternalId,
+        Position = i.Position,
         ScheduledInstances = i.ScheduledInstances?.Select(ToInstanceDto).ToList() ?? new()
     };
 

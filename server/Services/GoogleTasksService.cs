@@ -41,7 +41,7 @@ public class GoogleTasksService : IGoogleTasksService
         return result.Items ?? new List<GoogleTask>();
     }
 
-    public async System.Threading.Tasks.Task<string> CreateTaskAsync(User user, string taskListId, string title)
+    public async System.Threading.Tasks.Task<GoogleTask> CreateTaskAsync(User user, string taskListId, string title)
     {
         var service = GetService(user);
         var newTask = new GoogleTask
@@ -50,7 +50,7 @@ public class GoogleTasksService : IGoogleTasksService
         };
         var request = service.Tasks.Insert(newTask, taskListId);
         var result = await request.ExecuteAsync();
-        return result.Id;
+        return result;
     }
 
     public async System.Threading.Tasks.Task UpdateTaskAsync(User user, string taskListId, string taskId, string? title = null, bool? isCompleted = null)
