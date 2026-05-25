@@ -423,6 +423,8 @@ public class IntegrationService : IIntegrationService
         if (card == null)
         {
             _logger.LogInformation("Creating Microsoft To-Do tasks Card for User {UserId}.", userId);
+            // activeTasks is already sorted newest-first from the API.
+            // Assign ascending positions so position 0 = newest = first in the list.
             card = new Card
             {
                 Title = "Microsoft TODO Tasks",
@@ -432,11 +434,12 @@ public class IntegrationService : IIntegrationService
                 IsChecklist = true,
                 IntegrationSource = "MicrosoftTodo",
                 IntegrationExternalId = defaultList.Id,
-                ListItems = activeTasks.Select(task => new ListItem
+                ListItems = activeTasks.Select((task, index) => new ListItem
                 {
                     Text = task.Title,
                     IsCompleted = false,
-                    IntegrationExternalId = task.Id
+                    IntegrationExternalId = task.Id,
+                    Position = index.ToString("D10")
                 }).ToList()
             };
             _context.Cards.Add(card);
@@ -465,24 +468,39 @@ public class IntegrationService : IIntegrationService
                 }
             }
 
-            // 2. Add new active items
-            int addedCount = 0;
-            foreach (var task in activeTasks)
+            // 2. Find new active items not yet in the local card
+            // activeTasks is sorted newest-first from the API.
+            var newTasks = activeTasks
+                .Where(t => !card.ListItems.Any(li => li.IntegrationExternalId == t.Id))
+                .ToList();
+
+            if (newTasks.Count > 0)
             {
-                if (!card.ListItems.Any(li => li.IntegrationExternalId == task.Id))
+                _logger.LogInformation("Adding {Count} new tasks from Microsoft To-Do to Card.", newTasks.Count);
+
+                // Shift all existing item positions down to make room at the top for new items.
+                // Sort existing items by their current position to preserve the user's local order.
+                var orderedExisting = card.ListItems
+                    .OrderBy(li => li.Position ?? string.Empty)
+                    .ThenByDescending(li => li.Id)
+                    .ToList();
+
+                for (int i = 0; i < orderedExisting.Count; i++)
+                {
+                    orderedExisting[i].Position = (newTasks.Count + i).ToString("D10");
+                }
+
+                // Prepend new tasks at positions 0..N-1, newest task at position 0.
+                for (int i = 0; i < newTasks.Count; i++)
                 {
                     card.ListItems.Add(new ListItem
                     {
-                        Text = task.Title,
+                        Text = newTasks[i].Title,
                         IsCompleted = false,
-                        IntegrationExternalId = task.Id
+                        IntegrationExternalId = newTasks[i].Id,
+                        Position = i.ToString("D10")
                     });
-                    addedCount++;
                 }
-            }
-            if (addedCount > 0)
-            {
-                _logger.LogInformation("Added {Count} new tasks from Microsoft To-Do to Card.", addedCount);
             }
         }
 

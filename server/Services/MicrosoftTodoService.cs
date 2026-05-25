@@ -139,7 +139,9 @@ public class MicrosoftTodoService : IMicrosoftTodoService
     public async Task<List<MicrosoftTodoTaskDto>> GetTasksAsync(string accessToken, string listId)
     {
         _logger.LogDebug("Fetching Microsoft To-Do tasks for List {ListId}.", listId);
-        using var request = new HttpRequestMessage(HttpMethod.Get, $"https://graph.microsoft.com/v1.0/me/todo/lists/{listId}/tasks");
+        var url = $"https://graph.microsoft.com/v1.0/me/todo/lists/{listId}/tasks" +
+                  "?$select=id,title,status,createdDateTime&$orderby=createdDateTime desc";
+        using var request = new HttpRequestMessage(HttpMethod.Get, url);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
         
         var response = await _httpClient.SendAsync(request);
@@ -156,10 +158,19 @@ public class MicrosoftTodoService : IMicrosoftTodoService
         var list = new List<MicrosoftTodoTaskDto>();
         foreach (var item in json.RootElement.GetProperty("value").EnumerateArray())
         {
+            DateTimeOffset? createdDateTime = null;
+            if (item.TryGetProperty("createdDateTime", out var createdProp) &&
+                createdProp.ValueKind != JsonValueKind.Null &&
+                DateTimeOffset.TryParse(createdProp.GetString(), out var parsed))
+            {
+                createdDateTime = parsed;
+            }
+
             list.Add(new MicrosoftTodoTaskDto(
                 item.GetProperty("id").GetString()!,
                 item.GetProperty("title").GetString()!,
-                item.GetProperty("status").GetString()!
+                item.GetProperty("status").GetString()!,
+                createdDateTime
             ));
         }
         _logger.LogInformation("Fetched {Count} tasks from Microsoft To-Do List {ListId}.", list.Count, listId);

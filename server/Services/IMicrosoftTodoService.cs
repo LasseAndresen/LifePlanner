@@ -15,4 +15,4 @@ public interface IMicrosoftTodoService
 }
 
 public record MicrosoftTodoListDto(string Id, string DisplayName);
-public record MicrosoftTodoTaskDto(string Id, string Title, string Status);
+public record MicrosoftTodoTaskDto(string Id, string Title, string Status, DateTimeOffset? CreatedDateTime);
