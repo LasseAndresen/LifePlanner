@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Input, Output, inject } from '@angular/core';
+import { Component, EventEmitter, Input, Output, inject, signal, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Card, ListItem, ScheduledInstance, GoogleCalendarEvent, DayColumn } from '../../../../core/models/planner.models';
 import { DragDropModule, CdkDragDrop } from '@angular/cdk/drag-drop';
@@ -97,6 +97,7 @@ import { CalendarService } from '../../../../core/services/calendar.service';
                     [class.is-draft]="!entry.instance.isConfirmed"
                     [style.border-left-color]="entry.instance.category?.color ?? entry.card?.category?.color ?? '#6366f1'"
                     (click)="onEditClicked(entry)"
+                    (contextmenu)="onContextMenu($event, entry)"
                     cdkDrag
                     [cdkDragData]="entry">
                     <div class="card-header">
@@ -216,6 +217,7 @@ import { CalendarService } from '../../../../core/services/calendar.service';
                       [style.border-left-color]="entry.instance.category?.color ?? entry.card?.category?.color ?? '#6366f1'"
                       [class.completed]="entry.instance.isCompleted"
                       (click)="onEditClicked(entry)"
+                      (contextmenu)="onContextMenu($event, entry)"
                       cdkDrag
                       [cdkDragData]="entry">
                       
@@ -247,6 +249,37 @@ import { CalendarService } from '../../../../core/services/calendar.service';
               </div>
             }
           </div>
+        </div>
+      }
+
+      @if (contextMenuData(); as menu) {
+        <div 
+          class="context-menu glass-panel"
+          [style.left.px]="menu.x"
+          [style.top.px]="menu.y"
+          (click)="$event.stopPropagation()">
+          
+          @if (!menu.entry.instance.isConfirmed) {
+            <button class="context-item" (click)="confirmInstance(menu.entry)">
+              <span class="context-icon">✓</span> Confirm and put into calendar
+            </button>
+          } @else {
+            <button class="context-item" (click)="revertInstance(menu.entry)">
+              <span class="context-icon">↩</span> Revert to draft
+            </button>
+          }
+
+          @if (menu.entry.card?.isChecklist) {
+            @if (!menu.entry.instance.isCompleted) {
+              <button class="context-item" (click)="toggleInstance(menu.entry)">
+                <span class="context-icon">☑</span> Set as completed
+              </button>
+            } @else {
+              <button class="context-item" (click)="toggleInstance(menu.entry)">
+                <span class="context-icon">☐</span> Set as incomplete
+              </button>
+            }
+          }
         </div>
       }
     </div>
@@ -895,6 +928,51 @@ import { CalendarService } from '../../../../core/services/calendar.service';
     .refresh-btn:hover .icon {
       transform: rotate(180deg);
     }
+    .context-menu {
+      position: fixed;
+      z-index: 2000;
+      min-width: 240px;
+      background: rgba(22, 22, 34, 0.95);
+      border: 1px solid var(--border-glass-strong);
+      border-radius: var(--radius-md);
+      box-shadow: var(--shadow-glass);
+      padding: 0.35rem 0;
+      display: flex;
+      flex-direction: column;
+      backdrop-filter: blur(12px);
+      animation: fadeInContextMenu 0.15s ease-out;
+    }
+    @keyframes fadeInContextMenu {
+      from { opacity: 0; transform: scale(0.95); }
+      to { opacity: 1; transform: scale(1); }
+    }
+    .context-item {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.6rem 1rem;
+      width: 100%;
+      background: transparent;
+      border: none;
+      color: var(--text-secondary);
+      font-size: 0.85rem;
+      font-family: var(--font-family);
+      text-align: left;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+    .context-item:hover {
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text-primary);
+    }
+    .context-item .context-icon {
+      font-size: 1rem;
+      width: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--accent-primary);
+    }
   `]
 })
 export class CalendarGridComponent {
@@ -905,10 +983,65 @@ export class CalendarGridComponent {
   @Output() instanceToggled = new EventEmitter<{ instance: ScheduledInstance }>();
   @Output() instanceUnscheduled = new EventEmitter<number>();
   @Output() instanceConfirmed = new EventEmitter<{ instance: ScheduledInstance }>();
+  @Output() instanceReverted = new EventEmitter<{ instance: ScheduledInstance }>();
   @Output() addClicked = new EventEmitter<string>();
   @Output() editClicked = new EventEmitter<{ instance: ScheduledInstance; item?: ListItem; card?: Card }>();
 
   readonly days = this.calendarService.daysGrid;
+  readonly contextMenuData = signal<{
+    x: number;
+    y: number;
+    entry: { instance: ScheduledInstance; item?: ListItem; card?: Card };
+  } | null>(null);
+
+  onContextMenu(event: MouseEvent, entry: { instance: ScheduledInstance; item?: ListItem; card?: Card }) {
+    event.preventDefault();
+    event.stopPropagation();
+    
+    // Adjust position if it would overflow the viewport
+    const menuWidth = 240;
+    const menuHeight = 120;
+    let x = event.clientX;
+    let y = event.clientY;
+
+    if (x + menuWidth > window.innerWidth) {
+      x = window.innerWidth - menuWidth - 10;
+    }
+    if (y + menuHeight > window.innerHeight) {
+      y = window.innerHeight - menuHeight - 10;
+    }
+
+    this.contextMenuData.set({ x, y, entry });
+  }
+
+  @HostListener('document:click', ['$event'])
+  onDocumentClick(event: MouseEvent) {
+    if (this.contextMenuData()) {
+      this.contextMenuData.set(null);
+    }
+  }
+
+  @HostListener('document:contextmenu', ['$event'])
+  onDocumentContextMenu(event: MouseEvent) {
+    if (this.contextMenuData()) {
+      this.contextMenuData.set(null);
+    }
+  }
+
+  confirmInstance(entry: { instance: ScheduledInstance; item?: ListItem; card?: Card }) {
+    this.instanceConfirmed.emit({ instance: entry.instance });
+    this.contextMenuData.set(null);
+  }
+
+  revertInstance(entry: { instance: ScheduledInstance; item?: ListItem; card?: Card }) {
+    this.instanceReverted.emit({ instance: entry.instance });
+    this.contextMenuData.set(null);
+  }
+
+  toggleInstance(entry: { instance: ScheduledInstance; item?: ListItem; card?: Card }) {
+    this.instanceToggled.emit({ instance: entry.instance });
+    this.contextMenuData.set(null);
+  }
 
   onDrop(event: CdkDragDrop<any>) {
     this.itemDropped.emit(event);

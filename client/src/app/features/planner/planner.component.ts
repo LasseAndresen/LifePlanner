@@ -110,7 +110,8 @@ import { AdminDashboardDialogComponent } from './components/admin-dashboard-dial
             (editClicked)="onEditCalendarItem($event)"
             (instanceToggled)="onInstanceToggled($event)"
             (instanceUnscheduled)="onInstanceUnscheduled($event)"
-            (instanceConfirmed)="onInstanceConfirmed($event)">
+            (instanceConfirmed)="onInstanceConfirmed($event)"
+            (instanceReverted)="onInstanceReverted($event)">
           </app-calendar-grid>
         </div>
       </div>
@@ -525,6 +526,12 @@ export class PlannerComponent {
   onInstanceConfirmed({ instance }: { instance: ScheduledInstance }): void {
     this.cardService.updateScheduledInstance(instance.id, { isConfirmed: true }).subscribe({
       next: () => this.notifications.success(`"${instance.title || 'Event'}" confirmed & synced to Google Calendar!`)
+    });
+  }
+
+  onInstanceReverted({ instance }: { instance: ScheduledInstance }): void {
+    this.cardService.updateScheduledInstance(instance.id, { isConfirmed: false }).subscribe({
+      next: () => this.notifications.success(`"${instance.title || 'Event'}" reverted to draft.`)
     });
   }
 
