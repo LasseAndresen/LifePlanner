@@ -76,6 +76,17 @@ public class GoogleTasksService : IGoogleTasksService
         await request.ExecuteAsync();
     }
 
+    public async System.Threading.Tasks.Task<GoogleTask> MoveTaskAsync(User user, string taskListId, string taskId, string? previousTaskId)
+    {
+        var service = GetService(user);
+        var request = service.Tasks.Move(taskListId, taskId);
+        if (!string.IsNullOrEmpty(previousTaskId))
+        {
+            request.Previous = previousTaskId;
+        }
+        return await request.ExecuteAsync();
+    }
+
     public async System.Threading.Tasks.Task DeleteTaskAsync(User user, string taskListId, string taskId)
     {
         var service = GetService(user);

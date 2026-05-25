@@ -11,7 +11,7 @@ import { UserService } from '../../core/services/user.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { IntegrationService } from '../../core/services/integration.service';
 import { Card, ListItem, ScheduledInstance } from '../../core/models/planner.models';
-import { CdkDragDrop, DragDropModule, CdkDragEnd } from '@angular/cdk/drag-drop';
+import { CdkDragDrop, DragDropModule, CdkDragEnd, moveItemInArray } from '@angular/cdk/drag-drop';
 import { NotificationService } from '../../core/services/notification.service';
 import { ActivatedRoute, Router } from '@angular/router';
 import { CalendarInstanceDialogComponent, CalendarInstanceFormData } from './components/calendar-instance-dialog/calendar-instance-dialog.component';
@@ -490,6 +490,22 @@ export class PlannerComponent {
               }
             });
           }
+        }
+      }
+    } else {
+      if (currId.startsWith('card-items-')) {
+        const cardId = parseInt(currId.replace('card-items-', ''), 10);
+        const card = this.cardService.unscheduledCards().find(c => c.id === cardId);
+        if (card && card.listItems) {
+          const updatedItems = [...card.listItems];
+          moveItemInArray(updatedItems, event.previousIndex, event.currentIndex);
+          
+          // Instantly update UI signal
+          this.cardService.updateCardItems(cardId, () => updatedItems);
+
+          // Push order to backend
+          const itemIds = updatedItems.map(item => item.id);
+          this.cardService.reorderChecklistItems(cardId, data.item.id, itemIds).subscribe();
         }
       }
     }

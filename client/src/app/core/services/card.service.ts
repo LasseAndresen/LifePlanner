@@ -271,7 +271,23 @@ export class CardService {
     return this.deleteScheduledInstance(instanceId);
   }
 
-  private updateCardItems(cardId: number, updater: (items: ListItem[]) => ListItem[]): void {
+  reorderChecklistItems(cardId: number, movedItemId: number, itemIds: number[]): Observable<Card> {
+    return this.http
+      .put<Card>(`${environment.apiBaseUrl}/api/cards/${cardId}/items/reorder`, { movedItemId, itemIds })
+      .pipe(
+        tap(updatedCard => {
+          this.cardsSignal.update(cards =>
+            cards.map(c => c.id === cardId ? updatedCard : c)
+          );
+        }),
+        catchError(err => {
+          this.notifications.error('Could not save item order.');
+          return throwError(() => err);
+        })
+      );
+  }
+
+  updateCardItems(cardId: number, updater: (items: ListItem[]) => ListItem[]): void {
     this.cardsSignal.update(cards =>
       cards.map(c => c.id === cardId ? { ...c, listItems: updater(c.listItems) } : c)
     );

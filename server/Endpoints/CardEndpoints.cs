@@ -308,6 +308,67 @@ public static class CardEndpoints
             return Results.NoContent();
         }).WithTags("Cards");
 
+        group.MapPut("/{cardId}/items/reorder", async (int cardId, ReorderItemsRequest request, LifePlannerDbContext db, IGoogleTasksService googleTasksService, ILoggerFactory loggerFactory) =>
+        {
+            var logger = loggerFactory.CreateLogger("CardEndpoints");
+            var card = await db.Cards
+                .Include(c => c.ListItems)
+                .Include(c => c.User)
+                .FirstOrDefaultAsync(c => c.Id == cardId);
+
+            if (card == null) return Results.NotFound();
+
+            if (card.IntegrationSource == "GoogleTasks" &&
+                !string.IsNullOrEmpty(card.IntegrationExternalId) &&
+                card.User != null && card.User.GoogleTasksConnected)
+            {
+                var movedItem = card.ListItems.FirstOrDefault(li => li.Id == request.MovedItemId);
+                if (movedItem != null && !string.IsNullOrEmpty(movedItem.IntegrationExternalId))
+                {
+                    int movedIndex = request.ItemIds.IndexOf(request.MovedItemId);
+                    string? previousTaskExtId = null;
+                    if (movedIndex > 0)
+                    {
+                        var prevItemId = request.ItemIds[movedIndex - 1];
+                        var prevItem = card.ListItems.FirstOrDefault(li => li.Id == prevItemId);
+                        previousTaskExtId = prevItem?.IntegrationExternalId;
+                    }
+
+                    try
+                    {
+                        var updatedTask = await googleTasksService.MoveTaskAsync(
+                            card.User,
+                            card.IntegrationExternalId,
+                            movedItem.IntegrationExternalId,
+                            previousTaskExtId
+                        );
+                        movedItem.Position = updatedTask.Position;
+                    }
+                    catch (System.Exception ex)
+                    {
+                        logger.LogError(ex, "Error moving task in Google Tasks for CardId {CardId}, ItemId {ItemId}", cardId, request.MovedItemId);
+                    }
+                }
+            }
+
+            // Always update local positions for non-GoogleTasks items
+            if (card.IntegrationSource != "GoogleTasks")
+            {
+                for (int i = 0; i < request.ItemIds.Count; i++)
+                {
+                    var itemId = request.ItemIds[i];
+                    var item = card.ListItems.FirstOrDefault(li => li.Id == itemId);
+                    if (item != null)
+                    {
+                        item.Position = i.ToString("D10");
+                    }
+                }
+            }
+
+            await db.SaveChangesAsync();
+            return Results.Ok(ToDto(card));
+        }).WithTags("Cards");
+
         // --- Scheduled Instance endpoints ---
 
         group.MapPost("/{cardId}/items/{itemId}/instances", async (int cardId, int itemId, ScheduledInstance instanceReq, LifePlannerDbContext db) =>
@@ -609,3 +670,5 @@ public static class CardEndpoints
         IntegrationSource = inst.ListItem?.Card?.IntegrationSource
     };
 }
+
+public record ReorderItemsRequest(int MovedItemId, List<int> ItemIds);
