@@ -497,13 +497,11 @@ export class PlannerComponent {
         const cardId = parseInt(currId.replace('card-items-', ''), 10);
         const card = this.cardService.unscheduledCards().find(c => c.id === cardId);
         if (card && card.listItems) {
-          const updatedItems = [...card.listItems];
-          moveItemInArray(updatedItems, event.previousIndex, event.currentIndex);
+          moveItemInArray(event.container.data, event.previousIndex, event.currentIndex);
           
-          // Instantly update UI signal
+          const updatedItems = [...event.container.data];
           this.cardService.updateCardItems(cardId, () => updatedItems);
 
-          // Push order to backend
           const itemIds = updatedItems.map(item => item.id);
           this.cardService.reorderChecklistItems(cardId, data.item.id, itemIds).subscribe();
         }
