@@ -1,5 +1,7 @@
 using LifePlanner.Api.Models;
 using LifePlanner.Api.Repositories;
+using LifePlanner.Api.Data;
+using Microsoft.EntityFrameworkCore;
 
 namespace LifePlanner.Api.Endpoints;
 
@@ -64,12 +66,50 @@ public static class CategoryEndpoints
             return Results.NoContent();
         });
 
-        group.MapDelete("/{id}", async (int id, ICategoryRepository repo) =>
+        group.MapDelete("/{id}", async (int id, LifePlannerDbContext db) =>
         {
-            var category = await repo.GetByIdAsync(id);
+            var category = await db.Categories
+                .Include(c => c.Cards)
+                    .ThenInclude(c => c.ListItems)
+                .FirstOrDefaultAsync(c => c.Id == id);
+
             if (category is null) return Results.NotFound();
 
-            await repo.DeleteAsync(category);
+            // 1. Orphan any ScheduledInstances directly referencing this Category
+            var scheduledInstancesForCat = await db.ScheduledInstances
+                .Where(si => si.CategoryId == id)
+                .ToListAsync();
+            foreach (var si in scheduledInstancesForCat)
+            {
+                si.CategoryId = null;
+            }
+
+            // 2. Orphan any ScheduledInstances referencing ListItems under any Card in this Category
+            var cards = category.Cards.ToList();
+            var listItemIds = cards.SelectMany(c => c.ListItems).Select(li => li.Id).ToList();
+            if (listItemIds.Any())
+            {
+                var scheduledInstancesForItems = await db.ScheduledInstances
+                    .Include(si => si.ListItem)
+                    .Where(si => si.ListItemId.HasValue && listItemIds.Contains(si.ListItemId.Value))
+                    .ToListAsync();
+                foreach (var si in scheduledInstancesForItems)
+                {
+                    if (si.ListItem != null)
+                    {
+                        if (string.IsNullOrEmpty(si.Title))
+                        {
+                            si.Title = si.ListItem.Text;
+                        }
+                    }
+                    si.ListItemId = null;
+                    si.CategoryId = null;
+                }
+            }
+
+            // 3. Remove the category. Cascade delete handles Cards and ListItems.
+            db.Categories.Remove(category);
+            await db.SaveChangesAsync();
             return Results.NoContent();
         });
     }

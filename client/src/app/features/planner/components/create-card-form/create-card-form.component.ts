@@ -3,7 +3,8 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { CategoryService } from '../../../../core/services/category.service';
 import { UserService } from '../../../../core/services/user.service';
-import { Card } from '../../../../core/models/planner.models';
+import { CardService } from '../../../../core/services/card.service';
+import { Card, Category } from '../../../../core/models/planner.models';
 
 export interface CardFormData {
   title: string;
@@ -60,6 +61,7 @@ export interface CardFormData {
                   (click)="selectedCategoryId = cat.id">
                   <span class="dot" [style.background]="cat.color"></span>
                   {{ cat.name }}
+                  <span class="delete-btn" (click)="deleteCategory(cat, $event)" title="Delete category">✕</span>
                 </button>
               }
               <button class="pill pill-new" (click)="showNewCat = !showNewCat">
@@ -244,6 +246,22 @@ export interface CardFormData {
     }
     .pill-new { border-style: dashed; }
     .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .pill .delete-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      margin-left: 0.2rem;
+      transition: all 0.15s;
+    }
+    .pill .delete-btn:hover {
+      background: rgba(239, 68, 68, 0.2);
+      color: #ef4444;
+    }
 
     /* New category inline form */
     .new-cat-form {
@@ -352,6 +370,7 @@ export class CreateCardFormComponent {
 
   protected readonly categoryService = inject(CategoryService);
   private readonly userService = inject(UserService);
+  private readonly cardService = inject(CardService);
 
   protected title = '';
   protected description = '';
@@ -400,6 +419,28 @@ export class CreateCardFormComponent {
       this.showNewCat = false;
       this.newCatName = '';
       this.newCatColor = this.presetColors[0];
+    });
+  }
+
+  protected deleteCategory(category: Category, event: MouseEvent): void {
+    event.stopPropagation();
+    const userId = this.userService.currentUser()?.id;
+    if (!userId) return;
+
+    const confirmed = confirm(
+      `Are you sure you want to delete the category "${category.name}"?\n\nWARNING: Deleting this category will permanently delete ALL topic cards and tasks associated with it.`
+    );
+    if (!confirmed) return;
+
+    this.categoryService.deleteCategory(category.id).subscribe({
+      next: () => {
+        if (this.selectedCategoryId === category.id) {
+          this.selectedCategoryId = null;
+        }
+        // Cascade delete will have deleted cards associated with this category in DB,
+        // so we need to reload cards to sync frontend state
+        this.cardService.loadCards(userId);
+      }
     });
   }
 
