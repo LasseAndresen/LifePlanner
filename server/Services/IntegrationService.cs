@@ -563,7 +563,9 @@ public class IntegrationService : IIntegrationService
             Description = inst.Description,
             Type = inst.Type,
             StartTime = inst.StartTime,
-            EndTime = inst.EndTime
+            EndTime = inst.EndTime,
+            IsConfirmed = inst.IsConfirmed,
+            GoogleEventId = inst.GoogleEventId
         }).ToList() ?? new()
     };
 }

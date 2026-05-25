@@ -23,6 +23,10 @@ public class ScheduledInstanceDto
     public DateTime? StartTime { get; set; }
     public DateTime? EndTime { get; set; }
     
+    // Google Calendar Sync Integration
+    public bool IsConfirmed { get; set; }
+    public string? GoogleEventId { get; set; }
+    
     // Auxiliary fields for UI
     public string? ParentCardTitle { get; set; }
     public string? IntegrationSource { get; set; }

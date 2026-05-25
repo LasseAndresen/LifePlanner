@@ -164,6 +164,9 @@ export class CalendarService {
     });
 
     gEvents.forEach(event => {
+      const isAlreadyLPInstance = items.some(entry => entry.instance.isConfirmed && entry.instance.googleEventId === event.id);
+      if (isAlreadyLPInstance) return;
+
       const startStr = event.start?.dateTime || event.start?.date;
       const col = findDayColumn(startStr);
       if (col) col.googleEvents.push(event);
@@ -193,6 +196,14 @@ export class CalendarService {
         next: (events) => this.googleEvents.set(events || []),
         error: (err) => console.error('Failed to load Google Calendar events', err)
       });
+  }
+
+  refresh(): void {
+    const user = this.userService.currentUser();
+    if (!user) return;
+    const range = this.dateRange();
+    this.loadGoogleEvents(user.id, range.start, range.end);
+    this.cardService.loadScheduledInstances(user.id);
   }
 
   next(): void {

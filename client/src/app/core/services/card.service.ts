@@ -259,7 +259,8 @@ export class CardService {
       userId,
       listItemId: itemId,
       date: dateIso,
-      isCompleted: false
+      isCompleted: false,
+      isConfirmed: false
     });
   }
 

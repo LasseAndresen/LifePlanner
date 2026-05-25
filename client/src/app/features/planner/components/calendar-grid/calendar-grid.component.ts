@@ -29,6 +29,11 @@ import { CalendarService } from '../../../../core/services/calendar.service';
                 <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
               </svg>
             </button>
+            <button class="nav-btn refresh-btn" (click)="calendarService.refresh()" title="Refresh Calendar">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="icon">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+              </svg>
+            </button>
           </div>
 
           <!-- View Mode Toggle -->
@@ -89,6 +94,7 @@ import { CalendarService } from '../../../../core/services/calendar.service';
                 @for (entry of day.items; track entry.instance.id) {
                   <div 
                     class="event-card glass-panel item-event" 
+                    [class.is-draft]="!entry.instance.isConfirmed"
                     [style.border-left-color]="entry.instance.category?.color ?? entry.card?.category?.color ?? '#6366f1'"
                     (click)="onEditClicked(entry)"
                     cdkDrag
@@ -114,6 +120,15 @@ import { CalendarService } from '../../../../core/services/calendar.service';
                         </div>
                       </div>
                       <div class="card-actions">
+                        @if (!entry.instance.isConfirmed) {
+                          <span class="draft-badge">Draft</span>
+                          <button
+                            class="confirm-btn-badge"
+                            (click)="$event.stopPropagation(); onConfirmInstance(entry)"
+                            title="Confirm & Sync to Google Calendar">
+                            Confirm ✓
+                          </button>
+                        }
                         @if (entry.instance.type) {
                           <span class="type-badge">{{ entry.instance.type }}</span>
                         }
@@ -197,6 +212,7 @@ import { CalendarService } from '../../../../core/services/calendar.service';
                   @for (entry of day.items; track entry.instance.id) {
                     <div 
                       class="event-pill" 
+                      [class.is-draft]="!entry.instance.isConfirmed"
                       [style.border-left-color]="entry.instance.category?.color ?? entry.card?.category?.color ?? '#6366f1'"
                       [class.completed]="entry.instance.isCompleted"
                       (click)="onEditClicked(entry)"
@@ -211,6 +227,9 @@ import { CalendarService } from '../../../../core/services/calendar.service';
                           <span class="pill-source-icon" style="color: #60a5fa; font-size: 0.65rem;">☑ </span>
                         } @else if (entry.card?.integrationSource === 'GoogleTasks') {
                           <span class="pill-source-icon" style="color: #38bdf8; font-size: 0.65rem;">☑ </span>
+                        }
+                        @if (!entry.instance.isConfirmed) {
+                          <span class="draft-indicator" style="color: #fbbf24; font-weight: 600; font-size: 0.65rem;">[Draft] </span>
                         }
                         {{ entry.item?.text || entry.instance.title }}
                       </span>
@@ -815,6 +834,67 @@ import { CalendarService } from '../../../../core/services/calendar.service';
       color: #38bdf8;
       border: 1px solid rgba(14, 165, 233, 0.25);
     }
+    .event-card.is-draft {
+      border-style: dashed !important;
+      border-width: 1px;
+      border-color: rgba(255, 255, 255, 0.15);
+      background: repeating-linear-gradient(
+        45deg,
+        rgba(255, 255, 255, 0.005),
+        rgba(255, 255, 255, 0.005) 10px,
+        rgba(255, 255, 255, 0.015) 10px,
+        rgba(255, 255, 255, 0.015) 20px
+      ) !important;
+      opacity: 0.85;
+    }
+    .event-pill.is-draft {
+      border-style: dashed !important;
+      border-width: 1px;
+      border-color: rgba(255, 255, 255, 0.15);
+      background: repeating-linear-gradient(
+        45deg,
+        rgba(255, 255, 255, 0.005),
+        rgba(255, 255, 255, 0.005) 5px,
+        rgba(255, 255, 255, 0.015) 5px,
+        rgba(255, 255, 255, 0.015) 10px
+      ) !important;
+      opacity: 0.85;
+    }
+    .draft-badge {
+      font-size: 0.62rem;
+      font-weight: 700;
+      padding: 0.08rem 0.3rem;
+      border-radius: var(--radius-sm);
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+      background: rgba(245, 158, 11, 0.1);
+      color: #fbbf24;
+      border: 1px solid rgba(245, 158, 11, 0.2);
+    }
+    .confirm-btn-badge {
+      font-size: 0.62rem;
+      font-weight: 700;
+      padding: 0.08rem 0.4rem;
+      border-radius: var(--radius-sm);
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+      background: linear-gradient(135deg, #10b981, #059669);
+      color: white;
+      border: none;
+      cursor: pointer;
+      font-family: var(--font-family);
+      transition: transform 0.15s, opacity 0.15s;
+    }
+    .confirm-btn-badge:hover {
+      transform: scale(1.05);
+      opacity: 0.95;
+    }
+    .refresh-btn .icon {
+      transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+    }
+    .refresh-btn:hover .icon {
+      transform: rotate(180deg);
+    }
   `]
 })
 export class CalendarGridComponent {
@@ -824,6 +904,7 @@ export class CalendarGridComponent {
   @Output() itemDropped = new EventEmitter<CdkDragDrop<any>>();
   @Output() instanceToggled = new EventEmitter<{ instance: ScheduledInstance }>();
   @Output() instanceUnscheduled = new EventEmitter<number>();
+  @Output() instanceConfirmed = new EventEmitter<{ instance: ScheduledInstance }>();
   @Output() addClicked = new EventEmitter<string>();
   @Output() editClicked = new EventEmitter<{ instance: ScheduledInstance; item?: ListItem; card?: Card }>();
 
@@ -847,6 +928,10 @@ export class CalendarGridComponent {
 
   onEditClicked(entry: { instance: ScheduledInstance; item?: ListItem; card?: Card }) {
     this.editClicked.emit(entry);
+  }
+
+  onConfirmInstance(entry: { instance: ScheduledInstance }) {
+    this.instanceConfirmed.emit({ instance: entry.instance });
   }
 
   getFormattedTimeLabel(startTimeStr?: string, endTimeStr?: string): string {

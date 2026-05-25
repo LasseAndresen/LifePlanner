@@ -50,6 +50,8 @@ export interface ScheduledInstance {
   endTime?: string;
   parentCardTitle?: string;
   integrationSource?: string;
+  isConfirmed?: boolean;
+  googleEventId?: string;
 }
 
 export interface ListItem {

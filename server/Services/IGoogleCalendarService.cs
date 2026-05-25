@@ -6,4 +6,7 @@ namespace LifePlanner.Api.Services;
 public interface IGoogleCalendarService
 {
     Task<Events> GetUpcomingEventsAsync(User user, DateTime? start = null, DateTime? end = null);
+    Task<string> CreateEventAsync(User user, ScheduledInstance instance);
+    Task UpdateEventAsync(User user, ScheduledInstance instance);
+    Task DeleteEventAsync(User user, string googleEventId);
 }

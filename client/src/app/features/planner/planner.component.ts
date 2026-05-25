@@ -109,7 +109,8 @@ import { AdminDashboardDialogComponent } from './components/admin-dashboard-dial
             (addClicked)="onAddCalendarItem($event)"
             (editClicked)="onEditCalendarItem($event)"
             (instanceToggled)="onInstanceToggled($event)"
-            (instanceUnscheduled)="onInstanceUnscheduled($event)">
+            (instanceUnscheduled)="onInstanceUnscheduled($event)"
+            (instanceConfirmed)="onInstanceConfirmed($event)">
           </app-calendar-grid>
         </div>
       </div>
@@ -521,6 +522,12 @@ export class PlannerComponent {
     this.cardService.deleteScheduledInstance(instanceId).subscribe();
   }
 
+  onInstanceConfirmed({ instance }: { instance: ScheduledInstance }): void {
+    this.cardService.updateScheduledInstance(instance.id, { isConfirmed: true }).subscribe({
+      next: () => this.notifications.success(`"${instance.title || 'Event'}" confirmed & synced to Google Calendar!`)
+    });
+  }
+
   openIntegrations(): void {
     this.isIntegrationsOpen.set(true);
   }
@@ -575,7 +582,8 @@ export class PlannerComponent {
         type: formData.type,
         startTime: formData.startTime,
         endTime: formData.endTime,
-        categoryId: formData.categoryId
+        categoryId: formData.categoryId,
+        isConfirmed: formData.isConfirmed
       }).subscribe();
     } else {
       // Create mode
@@ -592,7 +600,8 @@ export class PlannerComponent {
             type: formData.type,
             startTime: formData.startTime,
             endTime: formData.endTime,
-            categoryId: formData.categoryId
+            categoryId: formData.categoryId,
+            isConfirmed: formData.isConfirmed
           }).subscribe();
         });
       } else {
@@ -606,7 +615,8 @@ export class PlannerComponent {
           type: formData.type,
           startTime: formData.startTime,
           endTime: formData.endTime,
-          categoryId: formData.categoryId
+          categoryId: formData.categoryId,
+          isConfirmed: formData.isConfirmed
         }).subscribe();
       }
     }

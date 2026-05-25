@@ -522,7 +522,7 @@ public static class CardEndpoints
         });
 
         // PUT /api/scheduled-instances/{id}
-        instanceGroup.MapPut("/{id:int}", async (int id, ScheduledInstance updatedInstance, LifePlannerDbContext db, IMicrosoftTodoService todoService, IGoogleTasksService googleTasksService, ILoggerFactory loggerFactory) =>
+        instanceGroup.MapPut("/{id:int}", async (int id, ScheduledInstance updatedInstance, LifePlannerDbContext db, IMicrosoftTodoService todoService, IGoogleTasksService googleTasksService, IGoogleCalendarService calendarService, ILoggerFactory loggerFactory) =>
         {
             var logger = loggerFactory.CreateLogger("CardEndpoints");
             var inst = await db.ScheduledInstances
@@ -533,6 +533,9 @@ public static class CardEndpoints
             if (inst is null) return Results.NotFound();
 
             bool completionChanged = inst.IsCompleted != updatedInstance.IsCompleted;
+            bool confirmationStatusChanged = inst.IsConfirmed != updatedInstance.IsConfirmed;
+            bool isNowConfirmed = updatedInstance.IsConfirmed;
+
             inst.Date = updatedInstance.Date;
             inst.IsCompleted = updatedInstance.IsCompleted;
             inst.Title = updatedInstance.Title;
@@ -542,6 +545,7 @@ public static class CardEndpoints
             inst.EndTime = updatedInstance.EndTime;
             inst.CategoryId = updatedInstance.CategoryId;
             inst.ListItemId = updatedInstance.ListItemId;
+            inst.IsConfirmed = updatedInstance.IsConfirmed;
 
             if (completionChanged && inst.ListItem != null)
             {
@@ -588,6 +592,47 @@ public static class CardEndpoints
                 }
             }
 
+            // Sync to Google Calendar
+            if (isNowConfirmed)
+            {
+                var user = await db.Users.FindAsync(inst.UserId);
+                if (user != null && !string.IsNullOrEmpty(user.GoogleAccessToken))
+                {
+                    try
+                    {
+                        if (string.IsNullOrEmpty(inst.GoogleEventId))
+                        {
+                            var eventId = await calendarService.CreateEventAsync(user, inst);
+                            inst.GoogleEventId = eventId;
+                        }
+                        else
+                        {
+                            await calendarService.UpdateEventAsync(user, inst);
+                        }
+                    }
+                    catch (System.Exception ex)
+                    {
+                        logger.LogError(ex, "Error syncing to Google Calendar for InstanceId {InstanceId}", id);
+                    }
+                }
+            }
+            else if (confirmationStatusChanged && !isNowConfirmed)
+            {
+                var user = await db.Users.FindAsync(inst.UserId);
+                if (user != null && !string.IsNullOrEmpty(user.GoogleAccessToken) && !string.IsNullOrEmpty(inst.GoogleEventId))
+                {
+                    try
+                    {
+                        await calendarService.DeleteEventAsync(user, inst.GoogleEventId);
+                        inst.GoogleEventId = null;
+                    }
+                    catch (System.Exception ex)
+                    {
+                        logger.LogError(ex, "Error deleting Google Calendar event for InstanceId {InstanceId}", id);
+                    }
+                }
+            }
+
             await db.SaveChangesAsync();
 
             // Reload it back with includes
@@ -602,10 +647,27 @@ public static class CardEndpoints
         });
 
         // DELETE /api/scheduled-instances/{id}
-        instanceGroup.MapDelete("/{id:int}", async (int id, LifePlannerDbContext db) =>
+        instanceGroup.MapDelete("/{id:int}", async (int id, LifePlannerDbContext db, IGoogleCalendarService calendarService, ILoggerFactory loggerFactory) =>
         {
+            var logger = loggerFactory.CreateLogger("CardEndpoints");
             var inst = await db.ScheduledInstances.FirstOrDefaultAsync(s => s.Id == id);
             if (inst is null) return Results.NotFound();
+
+            if (inst.IsConfirmed && !string.IsNullOrEmpty(inst.GoogleEventId))
+            {
+                var user = await db.Users.FindAsync(inst.UserId);
+                if (user != null && !string.IsNullOrEmpty(user.GoogleAccessToken))
+                {
+                    try
+                    {
+                        await calendarService.DeleteEventAsync(user, inst.GoogleEventId);
+                    }
+                    catch (System.Exception ex)
+                    {
+                        logger.LogError(ex, "Error deleting Google Calendar event for InstanceId {InstanceId}", id);
+                    }
+                }
+            }
 
             db.ScheduledInstances.Remove(inst);
             await db.SaveChangesAsync();
@@ -664,6 +726,8 @@ public static class CardEndpoints
         Type = inst.Type,
         StartTime = inst.StartTime,
         EndTime = inst.EndTime,
+        IsConfirmed = inst.IsConfirmed,
+        GoogleEventId = inst.GoogleEventId,
         Category = inst.Category != null ? new CategoryDto
         {
             Id = inst.Category.Id,

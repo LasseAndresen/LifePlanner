@@ -17,6 +17,7 @@ export interface CalendarInstanceFormData {
   endTime?: string;
   categoryId?: number;
   cardId?: number;
+  isConfirmed: boolean;
 }
 
 @Component({
@@ -122,6 +123,20 @@ export interface CalendarInstanceFormData {
                 }
               </div>
             }
+          </div>
+
+          <!-- Confirmation State Toggle -->
+          <div class="field field-row">
+            <span class="toggle-label">Confirm & Sync to Google Calendar</span>
+            <button
+              id="confirm-toggle"
+              type="button"
+              class="toggle"
+              [class.active]="isConfirmed"
+              (click)="isConfirmed = !isConfirmed"
+              [attr.aria-pressed]="isConfirmed">
+              <span class="toggle-thumb"></span>
+            </button>
           </div>
 
           <!-- Completed State Toggle -->
@@ -422,6 +437,7 @@ export class CalendarInstanceDialogComponent {
 
   protected date = '';
   protected isCompleted = false;
+  protected isConfirmed = false;
   protected title = '';
   protected description = '';
   protected type = '';
@@ -434,6 +450,7 @@ export class CalendarInstanceDialogComponent {
     if (this.instance) {
       this.date = this.instance.date;
       this.isCompleted = this.instance.isCompleted;
+      this.isConfirmed = this.instance.isConfirmed || false;
       this.title = this.instance.title || '';
       this.description = this.instance.description || '';
       this.type = this.instance.type || '';
@@ -443,6 +460,7 @@ export class CalendarInstanceDialogComponent {
     } else {
       this.date = this.defaultDate || new Date().toISOString().split('T')[0] + 'T00:00:00';
       this.isCompleted = false;
+      this.isConfirmed = false;
       this.title = '';
       this.description = '';
       this.type = 'Personal';
@@ -479,7 +497,8 @@ export class CalendarInstanceDialogComponent {
       startTime: startDateTime,
       endTime: endDateTime,
       categoryId: this.categoryId,
-      cardId: this.cardId
+      cardId: this.cardId,
+      isConfirmed: this.isConfirmed
     });
   }
 

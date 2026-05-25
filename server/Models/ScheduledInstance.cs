@@ -24,4 +24,9 @@ public class ScheduledInstance
     public string? Type { get; set; }
     public DateTime? StartTime { get; set; }
     public DateTime? EndTime { get; set; }
+    
+    // Google Calendar Sync Integration
+    public bool IsConfirmed { get; set; } = false;
+    public string? GoogleEventId { get; set; }
 }
+

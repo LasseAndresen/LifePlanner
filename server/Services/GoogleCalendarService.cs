@@ -8,18 +8,23 @@ namespace LifePlanner.Api.Services;
 
 public class GoogleCalendarService : IGoogleCalendarService
 {
-    public async Task<Events> GetUpcomingEventsAsync(User user, DateTime? start = null, DateTime? end = null)
+    private CalendarService GetService(User user)
     {
         if (string.IsNullOrEmpty(user.GoogleAccessToken))
             throw new UnauthorizedAccessException("User has not connected their Google Calendar.");
             
         var credential = GoogleCredential.FromAccessToken(user.GoogleAccessToken);
         
-        var service = new CalendarService(new BaseClientService.Initializer
+        return new CalendarService(new BaseClientService.Initializer
         {
             HttpClientInitializer = credential,
             ApplicationName = "LifePlanner"
         });
+    }
+
+    public async Task<Events> GetUpcomingEventsAsync(User user, DateTime? start = null, DateTime? end = null)
+    {
+        var service = GetService(user);
 
         var request = service.Events.List("primary");
         request.TimeMinDateTimeOffset = start ?? DateTime.UtcNow;
@@ -29,5 +34,89 @@ public class GoogleCalendarService : IGoogleCalendarService
         request.OrderBy = EventsResource.ListRequest.OrderByEnum.StartTime;
 
         return await request.ExecuteAsync();
+    }
+
+    public async Task<string> CreateEventAsync(User user, ScheduledInstance instance)
+    {
+        var service = GetService(user);
+
+        var ev = new Event
+        {
+            Summary = instance.Title ?? "Scheduled Event",
+            Description = instance.Description,
+        };
+
+        if (instance.StartTime.HasValue)
+        {
+            var end = instance.EndTime ?? instance.StartTime.Value.AddHours(1);
+            ev.Start = new EventDateTime { DateTimeDateTimeOffset = instance.StartTime.Value };
+            ev.End = new EventDateTime { DateTimeDateTimeOffset = end };
+        }
+        else
+        {
+            ev.Start = new EventDateTime { Date = instance.Date.ToString("yyyy-MM-dd") };
+            ev.End = new EventDateTime { Date = instance.Date.AddDays(1).ToString("yyyy-MM-dd") };
+        }
+
+        var request = service.Events.Insert(ev, "primary");
+        var createdEvent = await request.ExecuteAsync();
+        return createdEvent.Id;
+    }
+
+    public async Task UpdateEventAsync(User user, ScheduledInstance instance)
+    {
+        if (string.IsNullOrEmpty(instance.GoogleEventId))
+            return;
+
+        var service = GetService(user);
+
+        Event ev;
+        try
+        {
+            ev = await service.Events.Get("primary", instance.GoogleEventId).ExecuteAsync();
+        }
+        catch (Google.GoogleApiException ex) when (ex.HttpStatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            // Event was deleted or not found on Google Calendar, recreate it
+            var newId = await CreateEventAsync(user, instance);
+            instance.GoogleEventId = newId;
+            return;
+        }
+
+        ev.Summary = instance.Title ?? "Scheduled Event";
+        ev.Description = instance.Description;
+
+        if (instance.StartTime.HasValue)
+        {
+            var end = instance.EndTime ?? instance.StartTime.Value.AddHours(1);
+            ev.Start = new EventDateTime { DateTimeDateTimeOffset = instance.StartTime.Value, Date = null };
+            ev.End = new EventDateTime { DateTimeDateTimeOffset = end, Date = null };
+        }
+        else
+        {
+            ev.Start = new EventDateTime { Date = instance.Date.ToString("yyyy-MM-dd"), DateTimeDateTimeOffset = null };
+            ev.End = new EventDateTime { Date = instance.Date.AddDays(1).ToString("yyyy-MM-dd"), DateTimeDateTimeOffset = null };
+        }
+
+        var request = service.Events.Update(ev, "primary", instance.GoogleEventId);
+        await request.ExecuteAsync();
+    }
+
+    public async Task DeleteEventAsync(User user, string googleEventId)
+    {
+        if (string.IsNullOrEmpty(googleEventId))
+            return;
+
+        var service = GetService(user);
+
+        try
+        {
+            var request = service.Events.Delete("primary", googleEventId);
+            await request.ExecuteAsync();
+        }
+        catch (Google.GoogleApiException ex) when (ex.HttpStatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            // Already deleted, ignore
+        }
     }
 }
