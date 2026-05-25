@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Net.Http.Headers;
 using System.Text.Json;
 using LifePlanner.Api.Data;
@@ -139,8 +140,7 @@ public class MicrosoftTodoService : IMicrosoftTodoService
     public async Task<List<MicrosoftTodoTaskDto>> GetTasksAsync(string accessToken, string listId)
     {
         _logger.LogDebug("Fetching Microsoft To-Do tasks for List {ListId}.", listId);
-        var url = $"https://graph.microsoft.com/v1.0/me/todo/lists/{listId}/tasks" +
-                  "?$select=id,title,status,createdDateTime&$orderby=createdDateTime desc";
+        var url = $"https://graph.microsoft.com/v1.0/me/todo/lists/{listId}/tasks";
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
         
@@ -174,7 +174,7 @@ public class MicrosoftTodoService : IMicrosoftTodoService
             ));
         }
         _logger.LogInformation("Fetched {Count} tasks from Microsoft To-Do List {ListId}.", list.Count, listId);
-        return list;
+        return list.OrderByDescending(t => t.CreatedDateTime ?? DateTimeOffset.MinValue).ToList();
     }
 
     public async Task UpdateTaskAsync(string accessToken, string listId, string taskId, string? title = null, bool? isCompleted = null)
