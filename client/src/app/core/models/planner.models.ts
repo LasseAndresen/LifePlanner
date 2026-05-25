@@ -59,6 +59,7 @@ export interface ListItem {
   cardId: number;
   integrationExternalId?: string;
   scheduledInstances: ScheduledInstance[];
+  isNew?: boolean;
 }
 
 export interface Card {

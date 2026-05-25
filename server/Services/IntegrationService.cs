@@ -508,7 +508,7 @@ public class IntegrationService : IIntegrationService
         IsChecklist = c.IsChecklist,
         ListItems = c.ListItems
             .OrderBy(li => li.Position)
-            .ThenBy(li => li.Id)
+            .ThenByDescending(li => li.Id)
             .Select(ToItemDto)
             .ToList(),
         CategoryId = c.CategoryId,

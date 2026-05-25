@@ -135,7 +135,7 @@ export class CardService {
     return this.http
       .post<ListItem>(`${environment.apiBaseUrl}/api/cards/${cardId}/items`, { text, isCompleted: false, cardId, scheduledInstances: [] })
       .pipe(
-        tap(item => this.updateCardItems(cardId, items => [...items, item])),
+        tap(item => this.updateCardItems(cardId, items => [{ ...item, isNew: true }, ...items])),
         catchError(err => {
           this.notifications.error('Could not add item.');
           return throwError(() => err);

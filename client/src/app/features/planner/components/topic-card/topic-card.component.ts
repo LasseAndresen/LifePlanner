@@ -101,7 +101,8 @@ import { IntegrationService } from '../../../../core/services/integration.servic
               class="item"
               cdkDrag
               [cdkDragData]="{ item: item, card: card }"
-              [class.completed]="item.isCompleted && card.isChecklist">
+              [class.completed]="item.isCompleted && card.isChecklist"
+              [class.new-item]="item.isNew">
               @if (card.isChecklist) {
                 <button
                   class="check-btn"
@@ -340,6 +341,26 @@ import { IntegrationService } from '../../../../core/services/integration.servic
       border-radius: var(--radius-sm);
       transition: background 0.15s;
       cursor: grab;
+    }
+    .item.new-item {
+      animation: itemSlideIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    }
+    @keyframes itemSlideIn {
+      0% {
+        opacity: 0;
+        transform: translateY(-15px) scale(0.95);
+        background: rgba(16, 185, 129, 0.25);
+      }
+      30% {
+        opacity: 0.8;
+        transform: translateY(-5px) scale(1.01);
+        background: rgba(16, 185, 129, 0.2);
+      }
+      100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+        background: transparent;
+      }
     }
     .item:active {
       cursor: grabbing;
