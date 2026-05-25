@@ -92,7 +92,7 @@ public static class IntegrationEndpoints
             return Results.Redirect(service.GetAuthorizationUrl(state));
         });
 
-        group.MapGet("/microsoft/callback", async (string code, string state, IMicrosoftTodoService todoService, LifePlanner.Api.Data.LifePlannerDbContext context) =>
+        group.MapGet("/microsoft/callback", async (string code, string state, IMicrosoftTodoService todoService, IIntegrationService integrationService, LifePlanner.Api.Data.LifePlannerDbContext context) =>
         {
             if (!int.TryParse(state, out var userId))
             {
@@ -116,6 +116,9 @@ public static class IntegrationEndpoints
 
                 context.Users.Update(user);
                 await context.SaveChangesAsync();
+
+                // Automatically sync tasks on connection success
+                await integrationService.SyncMicrosoftTodoAsync(userId);
 
                 return Results.Redirect("http://localhost:4200/?integration=microsoft-success");
             }

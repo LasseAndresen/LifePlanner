@@ -1,6 +1,11 @@
 using Microsoft.EntityFrameworkCore;
 using LifePlanner.Api.Data;
 using LifePlanner.Api.Models;
+using Microsoft.Extensions.Logging;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 
 namespace LifePlanner.Api.Services;
 
@@ -9,12 +14,18 @@ public class IntegrationService : IIntegrationService
     private readonly LifePlannerDbContext _context;
     private readonly IGoogleTasksService _googleTasksService;
     private readonly IMicrosoftTodoService _microsoftTodoService;
+    private readonly ILogger<IntegrationService> _logger;
 
-    public IntegrationService(LifePlannerDbContext context, IGoogleTasksService googleTasksService, IMicrosoftTodoService microsoftTodoService)
+    public IntegrationService(
+        LifePlannerDbContext context, 
+        IGoogleTasksService googleTasksService, 
+        IMicrosoftTodoService microsoftTodoService,
+        ILogger<IntegrationService> logger)
     {
         _context = context;
         _googleTasksService = googleTasksService;
         _microsoftTodoService = microsoftTodoService;
+        _logger = logger;
     }
 
     private static readonly List<(string Id, string Text)> MockTodoTasks = new()
@@ -28,28 +39,51 @@ public class IntegrationService : IIntegrationService
 
     public async Task<IntegrationStatusDto> GetStatusAsync(int userId)
     {
+        _logger.LogDebug("Retrieving integration status for User {UserId}.", userId);
         var user = await _context.Users.FindAsync(userId);
-        if (user == null) return new IntegrationStatusDto(false, false);
+        if (user == null)
+        {
+            _logger.LogWarning("Failed to retrieve integration status: User {UserId} not found.", userId);
+            return new IntegrationStatusDto(false, false);
+        }
 
         return new IntegrationStatusDto(user.MicrosoftTodoConnected, user.GoogleTasksConnected);
     }
 
     public async Task<IntegrationStatusDto> ConnectAsync(int userId, string provider)
     {
+        _logger.LogInformation("Attempting to connect integration provider '{Provider}' for User {UserId}.", provider, userId);
         var user = await _context.Users.FindAsync(userId);
-        if (user == null) throw new KeyNotFoundException("User not found");
+        if (user == null)
+        {
+            _logger.LogError("Connection failed: User {UserId} not found.", userId);
+            throw new KeyNotFoundException("User not found");
+        }
 
         if (provider.Equals("MicrosoftTodo", StringComparison.OrdinalIgnoreCase))
         {
             user.MicrosoftTodoConnected = true;
             await _context.SaveChangesAsync();
-            // Automatically sync on connection
-            await SyncMicrosoftTodoAsync(userId);
+            _logger.LogInformation("Microsoft To-Do connected successfully for User {UserId}. Triggering auto-sync.", userId);
+            
+            try
+            {
+                await SyncMicrosoftTodoAsync(userId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Initial automatic sync failed after connecting Microsoft To-Do for User {UserId}.", userId);
+            }
         }
         else if (provider.Equals("GoogleTasks", StringComparison.OrdinalIgnoreCase))
         {
             user.GoogleTasksConnected = true;
             await _context.SaveChangesAsync();
+            _logger.LogInformation("Google Tasks connected successfully for User {UserId}.", userId);
+        }
+        else
+        {
+            _logger.LogWarning("Unknown integration provider connection requested: '{Provider}' for User {UserId}.", provider, userId);
         }
 
         return new IntegrationStatusDto(user.MicrosoftTodoConnected, user.GoogleTasksConnected);
@@ -57,8 +91,13 @@ public class IntegrationService : IIntegrationService
 
     public async Task<IntegrationStatusDto> DisconnectAsync(int userId, string provider)
     {
+        _logger.LogInformation("Attempting to disconnect integration provider '{Provider}' for User {UserId}.", provider, userId);
         var user = await _context.Users.FindAsync(userId);
-        if (user == null) throw new KeyNotFoundException("User not found");
+        if (user == null)
+        {
+            _logger.LogError("Disconnection failed: User {UserId} not found.", userId);
+            throw new KeyNotFoundException("User not found");
+        }
 
         if (provider.Equals("MicrosoftTodo", StringComparison.OrdinalIgnoreCase))
         {
@@ -67,25 +106,93 @@ public class IntegrationService : IIntegrationService
             user.MicrosoftRefreshToken = null;
             user.MicrosoftTokenExpiration = null;
             
-            // Delete imported MS Todo cards
+            // Delete imported MS Todo cards and orphan their scheduled instances
             var todoCards = await _context.Cards
+                .Include(c => c.ListItems)
                 .Where(c => c.UserId == userId && c.IntegrationSource == "MicrosoftTodo")
                 .ToListAsync();
-            _context.Cards.RemoveRange(todoCards);
+
+            _logger.LogInformation("Removing {CardCount} Microsoft To-Do cards and orphaning associated checklist items for User {UserId}.", todoCards.Count, userId);
+
+            var listItemIds = todoCards.SelectMany(c => c.ListItems).Select(li => li.Id).ToList();
+            if (listItemIds.Any())
+            {
+                var scheduledInstances = await _context.ScheduledInstances
+                    .Include(si => si.ListItem)
+                        .ThenInclude(li => li!.Card)
+                    .Where(si => si.ListItemId.HasValue && listItemIds.Contains(si.ListItemId.Value))
+                    .ToListAsync();
+                
+                foreach (var si in scheduledInstances)
+                {
+                    if (si.ListItem != null)
+                    {
+                        if (string.IsNullOrEmpty(si.Title))
+                        {
+                            si.Title = si.ListItem.Text;
+                        }
+                        if (!si.CategoryId.HasValue && si.ListItem.Card != null)
+                        {
+                            si.CategoryId = si.ListItem.Card.CategoryId;
+                        }
+                    }
+                    si.ListItemId = null;
+                }
+                
+                _logger.LogDebug("Orphaned {InstanceCount} scheduled instances due to Microsoft To-Do disconnect.", scheduledInstances.Count);
+            }
             
+            _context.Cards.RemoveRange(todoCards);
             await _context.SaveChangesAsync();
+            _logger.LogInformation("Successfully disconnected and cleaned up Microsoft To-Do for User {UserId}.", userId);
         }
         else if (provider.Equals("GoogleTasks", StringComparison.OrdinalIgnoreCase))
         {
             user.GoogleTasksConnected = false;
 
-            // Delete imported Google Tasks cards
+            // Delete imported Google Tasks cards and orphan their scheduled instances
             var keepCards = await _context.Cards
+                .Include(c => c.ListItems)
                 .Where(c => c.UserId == userId && c.IntegrationSource == "GoogleTasks")
                 .ToListAsync();
-            _context.Cards.RemoveRange(keepCards);
 
+            _logger.LogInformation("Removing {CardCount} Google Tasks cards and orphaning associated checklist items for User {UserId}.", keepCards.Count, userId);
+
+            var listItemIds = keepCards.SelectMany(c => c.ListItems).Select(li => li.Id).ToList();
+            if (listItemIds.Any())
+            {
+                var scheduledInstances = await _context.ScheduledInstances
+                    .Include(si => si.ListItem)
+                        .ThenInclude(li => li!.Card)
+                    .Where(si => si.ListItemId.HasValue && listItemIds.Contains(si.ListItemId.Value))
+                    .ToListAsync();
+                
+                foreach (var si in scheduledInstances)
+                {
+                    if (si.ListItem != null)
+                    {
+                        if (string.IsNullOrEmpty(si.Title))
+                        {
+                            si.Title = si.ListItem.Text;
+                        }
+                        if (!si.CategoryId.HasValue && si.ListItem.Card != null)
+                        {
+                            si.CategoryId = si.ListItem.Card.CategoryId;
+                        }
+                    }
+                    si.ListItemId = null;
+                }
+                
+                _logger.LogDebug("Orphaned {InstanceCount} scheduled instances due to Google Tasks disconnect.", scheduledInstances.Count);
+            }
+
+            _context.Cards.RemoveRange(keepCards);
             await _context.SaveChangesAsync();
+            _logger.LogInformation("Successfully disconnected and cleaned up Google Tasks for User {UserId}.", userId);
+        }
+        else
+        {
+            _logger.LogWarning("Unknown integration provider disconnection requested: '{Provider}' for User {UserId}.", provider, userId);
         }
 
         return new IntegrationStatusDto(user.MicrosoftTodoConnected, user.GoogleTasksConnected);
@@ -93,11 +200,14 @@ public class IntegrationService : IIntegrationService
 
     public async Task<List<GoogleTaskListDto>> GetGoogleTaskListsAsync(int userId)
     {
+        _logger.LogDebug("Retrieving Google Tasks lists for User {UserId}.", userId);
         var user = await _context.Users.FindAsync(userId);
         if (user == null || !user.GoogleTasksConnected)
+        {
+            _logger.LogError("GetGoogleTaskListsAsync failed: User {UserId} not found or Google Tasks disconnected.", userId);
             throw new InvalidOperationException("Google Tasks is not connected.");
+        }
 
-        // Check which ones are already imported
         var importedIds = await _context.Cards
             .Where(c => c.UserId == userId && c.IntegrationSource == "GoogleTasks")
             .Select(c => c.IntegrationExternalId)
@@ -123,20 +233,25 @@ public class IntegrationService : IIntegrationService
         });
 
         var results = await Task.WhenAll(tasksQueries);
+        _logger.LogInformation("Retrieved {ListCount} task lists from Google Tasks for User {UserId}.", results.Length, userId);
         return results.ToList();
     }
 
     public async Task<List<CardDto>> ImportGoogleTaskListsAsync(int userId, List<string> externalIds)
     {
+        _logger.LogInformation("Importing Google Tasks lists for User {UserId}. Target List IDs: {ExternalIds}", userId, string.Join(", ", externalIds));
         var user = await _context.Users.FindAsync(userId);
         if (user == null || !user.GoogleTasksConnected)
+        {
+            _logger.LogError("ImportGoogleTaskListsAsync failed: User {UserId} not found or Google Tasks disconnected.", userId);
             throw new InvalidOperationException("Google Tasks is not connected.");
+        }
 
-        // Get category or create one
         var category = await _context.Categories
             .FirstOrDefaultAsync(c => c.UserId == userId && c.Name == "Google Tasks");
         if (category == null)
         {
+            _logger.LogInformation("Google Tasks category not found. Creating a default category for User {UserId}.", userId);
             category = new Category { Name = "Google Tasks", Color = "#2563eb", UserId = userId };
             _context.Categories.Add(category);
             await _context.SaveChangesAsync();
@@ -146,7 +261,12 @@ public class IntegrationService : IIntegrationService
         var cardsToRemove = await _context.Cards
             .Where(c => c.UserId == userId && c.IntegrationSource == "GoogleTasks" && !externalIds.Contains(c.IntegrationExternalId!))
             .ToListAsync();
-        _context.Cards.RemoveRange(cardsToRemove);
+        
+        if (cardsToRemove.Any())
+        {
+            _logger.LogInformation("Removing {CardCount} Google Tasks cards that are no longer imported.", cardsToRemove.Count);
+            _context.Cards.RemoveRange(cardsToRemove);
+        }
 
         // 2. Add or update selected cards
         var allTaskLists = await _googleTasksService.GetTaskListsAsync(user);
@@ -167,7 +287,7 @@ public class IntegrationService : IIntegrationService
 
             if (existingCard == null)
             {
-                // Create new card
+                _logger.LogInformation("Creating new Card for imported Google Tasks list: '{Title}' (External ID: {ExtId})", listTitle, externalId);
                 var newCard = new Card
                 {
                     Title = listTitle,
@@ -188,20 +308,21 @@ public class IntegrationService : IIntegrationService
             }
             else
             {
-                // Update title if changed
+                _logger.LogDebug("Updating existing Card for Google Tasks list: '{Title}' (External ID: {ExtId})", listTitle, externalId);
                 existingCard.Title = listTitle;
 
-                // 1. Remove items that no longer exist in Google Tasks
+                // Remove items that no longer exist in Google Tasks
                 var googleTaskIds = activeAndRecentTasks.Select(t => t.Id).ToHashSet();
                 var itemsToRemove = existingCard.ListItems
                     .Where(li => !googleTaskIds.Contains(li.IntegrationExternalId!))
                     .ToList();
+                
                 foreach (var item in itemsToRemove)
                 {
                     existingCard.ListItems.Remove(item);
                 }
 
-                // 2. Add or update items
+                // Add or update items
                 foreach (var task in activeAndRecentTasks)
                 {
                     var existingItem = existingCard.ListItems.FirstOrDefault(li => li.IntegrationExternalId == task.Id);
@@ -227,7 +348,6 @@ public class IntegrationService : IIntegrationService
 
         await _context.SaveChangesAsync();
 
-        // Return all updated Google Tasks cards
         var keepCards = await _context.Cards
             .Include(c => c.Category)
             .Include(c => c.ListItems)
@@ -240,34 +360,40 @@ public class IntegrationService : IIntegrationService
 
     public async Task<CardDto> SyncMicrosoftTodoAsync(int userId)
     {
+        _logger.LogInformation("Starting Microsoft To-Do synchronization for User {UserId}.", userId);
         var user = await _context.Users.FindAsync(userId);
         if (user == null || !user.MicrosoftTodoConnected)
+        {
+            _logger.LogError("SyncMicrosoftTodoAsync failed: User {UserId} not found or Microsoft To-Do disconnected.", userId);
             throw new InvalidOperationException("Microsoft TODO is not connected.");
+        }
 
-        // Retrieve active access token (refreshes if expired)
         var accessToken = await _microsoftTodoService.GetOrRefreshTokenAsync(user);
 
-        // Fetch lists and get the default Tasks list (commonly named "Tasks")
         var lists = await _microsoftTodoService.GetTodoListsAsync(accessToken);
         var defaultList = lists.FirstOrDefault(l => l.DisplayName.Equals("Tasks", StringComparison.OrdinalIgnoreCase)) ?? lists.FirstOrDefault();
 
         if (defaultList == null)
+        {
+            _logger.LogError("SyncMicrosoftTodoAsync failed: No Microsoft To-Do task lists found for User {UserId}.", userId);
             throw new InvalidOperationException("No Microsoft To-Do list found.");
+        }
 
         var apiTasks = await _microsoftTodoService.GetTasksAsync(accessToken, defaultList.Id);
         var activeTasks = apiTasks.Where(t => t.Status != "completed").ToList();
 
-        // Get category or create one
+        _logger.LogDebug("Fetched {Count} active tasks from Microsoft To-Do default list '{ListName}' ({ListId}).", activeTasks.Count, defaultList.DisplayName, defaultList.Id);
+
         var category = await _context.Categories
             .FirstOrDefaultAsync(c => c.UserId == userId && c.Name == "Microsoft TODO");
         if (category == null)
         {
+            _logger.LogInformation("Microsoft TODO category not found. Creating a default category for User {UserId}.", userId);
             category = new Category { Name = "Microsoft TODO", Color = "#2563eb", UserId = userId };
             _context.Categories.Add(category);
             await _context.SaveChangesAsync();
         }
 
-        // Get or create the card (upgrade from 'ms-todo-default' if it exists)
         var card = await _context.Cards
             .Include(c => c.ListItems)
                 .ThenInclude(li => li.ScheduledInstances)
@@ -276,6 +402,7 @@ public class IntegrationService : IIntegrationService
 
         if (card == null)
         {
+            _logger.LogInformation("Creating Microsoft To-Do tasks Card for User {UserId}.", userId);
             card = new Card
             {
                 Title = "Microsoft TODO Tasks",
@@ -296,9 +423,9 @@ public class IntegrationService : IIntegrationService
         }
         else
         {
-            // Upgrade external ID if still using the mock ID
             if (card.IntegrationExternalId == "ms-todo-default")
             {
+                _logger.LogInformation("Upgrading mock Microsoft To-Do Card to actual list ID '{ListId}' for User {UserId}.", defaultList.Id, userId);
                 card.IntegrationExternalId = defaultList.Id;
             }
 
@@ -308,12 +435,18 @@ public class IntegrationService : IIntegrationService
             var itemsToRemove = card.ListItems
                 .Where(li => !string.IsNullOrEmpty(li.IntegrationExternalId) && !activeTaskIds.Contains(li.IntegrationExternalId))
                 .ToList();
-            foreach (var item in itemsToRemove)
+            
+            if (itemsToRemove.Any())
             {
-                card.ListItems.Remove(item);
+                _logger.LogInformation("Removing {Count} checklist items no longer present in Microsoft To-Do list.", itemsToRemove.Count);
+                foreach (var item in itemsToRemove)
+                {
+                    card.ListItems.Remove(item);
+                }
             }
 
             // 2. Add new active items
+            int addedCount = 0;
             foreach (var task in activeTasks)
             {
                 if (!card.ListItems.Any(li => li.IntegrationExternalId == task.Id))
@@ -324,19 +457,24 @@ public class IntegrationService : IIntegrationService
                         IsCompleted = false,
                         IntegrationExternalId = task.Id
                     });
+                    addedCount++;
                 }
+            }
+            if (addedCount > 0)
+            {
+                _logger.LogInformation("Added {Count} new tasks from Microsoft To-Do to Card.", addedCount);
             }
         }
 
         await _context.SaveChangesAsync();
 
-        // Reload to get fully mapped data
         var reloadedCard = await _context.Cards
             .Include(c => c.Category)
             .Include(c => c.ListItems)
                 .ThenInclude(li => li.ScheduledInstances)
             .FirstAsync(c => c.Id == card.Id);
 
+        _logger.LogInformation("Successfully synchronized Microsoft To-Do tasks for User {UserId}.", userId);
         return ToDto(reloadedCard);
     }
 

@@ -1,6 +1,7 @@
 using LifePlanner.Api.Data;
 using LifePlanner.Api.Models;
 using LifePlanner.Api.Repositories;
+using LifePlanner.Api.Services;
 using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
 using System.Linq;
@@ -68,12 +69,39 @@ public static class CardEndpoints
             return Results.Ok(ToDto(resultEntity));
         });
 
-        group.MapDelete("/{id}", async (int id, ICardRepository repo) =>
+        group.MapDelete("/{id}", async (int id, LifePlannerDbContext db) =>
         {
-            var card = await repo.GetByIdAsync(id);
+            var card = await db.Cards
+                .Include(c => c.ListItems)
+                .FirstOrDefaultAsync(c => c.Id == id);
             if (card is null) return Results.NotFound();
 
-            await repo.DeleteAsync(card);
+            var listItemIds = card.ListItems.Select(li => li.Id).ToList();
+            if (listItemIds.Any())
+            {
+                var scheduledInstances = await db.ScheduledInstances
+                    .Include(si => si.ListItem)
+                    .Where(si => si.ListItemId.HasValue && listItemIds.Contains(si.ListItemId.Value))
+                    .ToListAsync();
+                foreach (var si in scheduledInstances)
+                {
+                    if (si.ListItem != null)
+                    {
+                        if (string.IsNullOrEmpty(si.Title))
+                        {
+                            si.Title = si.ListItem.Text;
+                        }
+                        if (!si.CategoryId.HasValue)
+                        {
+                            si.CategoryId = card.CategoryId;
+                        }
+                    }
+                    si.ListItemId = null;
+                }
+            }
+
+            db.Cards.Remove(card);
+            await db.SaveChangesAsync();
             return Results.NoContent();
         });
 
@@ -86,22 +114,54 @@ public static class CardEndpoints
 
         // --- List Item endpoints ---
 
-        group.MapPost("/{cardId}/items", async (int cardId, ListItem item, ICardRepository repo, LifePlannerDbContext db) =>
+        group.MapPost("/{cardId}/items", async (int cardId, ListItem item, LifePlannerDbContext db, IMicrosoftTodoService todoService, ILoggerFactory loggerFactory) =>
         {
-            var card = await repo.GetByIdAsync(cardId);
+            var logger = loggerFactory.CreateLogger("CardEndpoints");
+            var card = await db.Cards.Include(c => c.User).FirstOrDefaultAsync(c => c.Id == cardId);
             if (card is null) return Results.NotFound();
 
             item.CardId = cardId;
+
+            if (card.IntegrationSource == "MicrosoftTodo" && 
+                !string.IsNullOrEmpty(card.IntegrationExternalId) && 
+                card.User != null && card.User.MicrosoftTodoConnected)
+            {
+                try
+                {
+                    var accessToken = await todoService.GetOrRefreshTokenAsync(card.User);
+                    var externalId = await todoService.CreateTaskAsync(accessToken, card.IntegrationExternalId, item.Text);
+                    item.IntegrationExternalId = externalId;
+                }
+                catch (System.Exception ex)
+                {
+                    logger.LogError(ex, "Error creating task in Microsoft To-Do for CardId {CardId}", cardId);
+                }
+            }
+
             db.ListItems.Add(item);
             await db.SaveChangesAsync();
 
             return Results.Created($"/api/cards/{cardId}/items/{item.Id}", ToItemDto(item));
         }).WithTags("Cards");
 
-        group.MapPut("/{cardId}/items/{itemId}", async (int cardId, int itemId, ListItem updatedItem, LifePlannerDbContext db) =>
+        group.MapPut("/{cardId}/items/{itemId}", async (int cardId, int itemId, ListItem updatedItem, LifePlannerDbContext db, IMicrosoftTodoService todoService, ILoggerFactory loggerFactory) =>
         {
-            var item = await db.ListItems.Include(i => i.ScheduledInstances).FirstOrDefaultAsync(i => i.Id == itemId && i.CardId == cardId);
+            var logger = loggerFactory.CreateLogger("CardEndpoints");
+
+            var item = await db.ListItems
+                .Include(i => i.ScheduledInstances)
+                .Include(i => i.Card)
+                    .ThenInclude(c => c!.User)
+                .FirstOrDefaultAsync(i => i.Id == itemId && i.CardId == cardId);
             if (item is null) return Results.NotFound();
+
+            bool completionChanged = item.IsCompleted != updatedItem.IsCompleted;
+            bool renameChanged = item.Text != updatedItem.Text;
+
+            logger.LogInformation("Item Put Request - ItemId: {ItemId}, CardId: {CardId}, Text: '{OldText}' -> '{NewText}', renameChanged: {RenameChanged}, completionChanged: {CompletionChanged}", 
+                itemId, cardId, item.Text, updatedItem.Text, renameChanged, completionChanged);
+            logger.LogInformation("Integration Details - Item External ID: '{ItemExtId}', Card External ID: '{CardExtId}'", 
+                item.IntegrationExternalId, item.Card?.IntegrationExternalId);
 
             item.Text = updatedItem.Text;
             item.IsCompleted = updatedItem.IsCompleted;
@@ -110,12 +170,35 @@ public static class CardEndpoints
                 item.CardId = updatedItem.CardId;
             }
 
-            // Sync rename to all linked scheduled instances in the DB
+            // Sync rename and completion to all linked scheduled instances in the DB
             if (item.ScheduledInstances != null)
             {
                 foreach (var inst in item.ScheduledInstances)
                 {
                     inst.Title = updatedItem.Text;
+                    inst.IsCompleted = updatedItem.IsCompleted;
+                }
+            }
+
+            if ((completionChanged || renameChanged) && item.Card?.IntegrationSource == "MicrosoftTodo" &&
+                !string.IsNullOrEmpty(item.IntegrationExternalId) &&
+                !string.IsNullOrEmpty(item.Card.IntegrationExternalId) &&
+                item.Card.User != null && item.Card.User.MicrosoftTodoConnected)
+            {
+                try
+                {
+                    var accessToken = await todoService.GetOrRefreshTokenAsync(item.Card.User);
+                    await todoService.UpdateTaskAsync(
+                        accessToken, 
+                        item.Card.IntegrationExternalId, 
+                        item.IntegrationExternalId, 
+                        title: renameChanged ? item.Text : null, 
+                        isCompleted: completionChanged ? (bool?)item.IsCompleted : null
+                    );
+                }
+                catch (System.Exception ex)
+                {
+                    logger.LogError(ex, "Error syncing task update with Microsoft To-Do for ItemId {ItemId}", itemId);
                 }
             }
 
@@ -124,10 +207,52 @@ public static class CardEndpoints
             return Results.Ok(ToItemDto(item));
         }).WithTags("Cards");
 
-        group.MapDelete("/{cardId}/items/{itemId}", async (int cardId, int itemId, LifePlannerDbContext db) =>
+        group.MapDelete("/{cardId}/items/{itemId}", async (int cardId, int itemId, LifePlannerDbContext db, IMicrosoftTodoService todoService, ILoggerFactory loggerFactory) =>
         {
-            var item = await db.ListItems.FirstOrDefaultAsync(i => i.Id == itemId && i.CardId == cardId);
+            var logger = loggerFactory.CreateLogger("CardEndpoints");
+            var item = await db.ListItems
+                .Include(i => i.Card)
+                    .ThenInclude(c => c!.User)
+                .FirstOrDefaultAsync(i => i.Id == itemId && i.CardId == cardId);
             if (item is null) return Results.NotFound();
+
+            if (item.Card?.IntegrationSource == "MicrosoftTodo" && 
+                !string.IsNullOrEmpty(item.IntegrationExternalId) && 
+                !string.IsNullOrEmpty(item.Card.IntegrationExternalId) && 
+                item.Card.User != null && item.Card.User.MicrosoftTodoConnected)
+            {
+                try
+                {
+                    var accessToken = await todoService.GetOrRefreshTokenAsync(item.Card.User);
+                    await todoService.DeleteTaskAsync(accessToken, item.Card.IntegrationExternalId, item.IntegrationExternalId);
+                }
+                catch (System.Exception ex)
+                {
+                    logger.LogError(ex, "Error deleting task from Microsoft To-Do for ItemId {ItemId}", itemId);
+                }
+            }
+
+            // Orphan any scheduled instances first instead of deleting them
+            var scheduledInstances = await db.ScheduledInstances
+                .Include(si => si.ListItem)
+                    .ThenInclude(li => li!.Card)
+                .Where(si => si.ListItemId == itemId)
+                .ToListAsync();
+            foreach (var si in scheduledInstances)
+            {
+                if (si.ListItem != null)
+                {
+                    if (string.IsNullOrEmpty(si.Title))
+                    {
+                        si.Title = si.ListItem.Text;
+                    }
+                    if (!si.CategoryId.HasValue && si.ListItem.Card != null)
+                    {
+                        si.CategoryId = si.ListItem.Card.CategoryId;
+                    }
+                }
+                si.ListItemId = null;
+            }
 
             db.ListItems.Remove(item);
             await db.SaveChangesAsync();
@@ -145,7 +270,8 @@ public static class CardEndpoints
             {
                 Date = instanceReq.Date,
                 IsCompleted = instanceReq.IsCompleted,
-                ListItemId = itemId
+                ListItemId = itemId,
+                Title = item.Text
             };
             db.ScheduledInstances.Add(newInstance);
             await db.SaveChangesAsync();
@@ -153,13 +279,52 @@ public static class CardEndpoints
             return Results.Created($"/api/cards/{cardId}/items/{itemId}/instances/{newInstance.Id}", ToInstanceDto(newInstance));
         }).WithTags("Cards");
 
-        group.MapPut("/{cardId}/items/{itemId}/instances/{instanceId}", async (int cardId, int itemId, int instanceId, ScheduledInstance updatedInstance, LifePlannerDbContext db) =>
+        group.MapPut("/{cardId}/items/{itemId}/instances/{instanceId}", async (int cardId, int itemId, int instanceId, ScheduledInstance updatedInstance, LifePlannerDbContext db, IMicrosoftTodoService todoService, ILoggerFactory loggerFactory) =>
         {
-            var inst = await db.ScheduledInstances.FirstOrDefaultAsync(s => s.Id == instanceId && s.ListItemId == itemId);
+            var logger = loggerFactory.CreateLogger("CardEndpoints");
+            var inst = await db.ScheduledInstances
+                .Include(s => s.ListItem)
+                    .ThenInclude(li => li!.Card)
+                        .ThenInclude(c => c!.User)
+                .FirstOrDefaultAsync(s => s.Id == instanceId && s.ListItemId == itemId);
             if (inst is null) return Results.NotFound();
+
+            bool completionChanged = inst.IsCompleted != updatedInstance.IsCompleted;
 
             inst.Date = updatedInstance.Date;
             inst.IsCompleted = updatedInstance.IsCompleted;
+
+            if (completionChanged && inst.ListItem != null)
+            {
+                inst.ListItem.IsCompleted = updatedInstance.IsCompleted;
+
+                // Sync to all other scheduled instances of the same list item
+                var otherInstances = await db.ScheduledInstances
+                    .Where(si => si.ListItemId == inst.ListItemId && si.Id != inst.Id)
+                    .ToListAsync();
+                foreach (var other in otherInstances)
+                {
+                    other.IsCompleted = updatedInstance.IsCompleted;
+                }
+
+                var card = inst.ListItem.Card;
+                if (card?.IntegrationSource == "MicrosoftTodo" &&
+                    !string.IsNullOrEmpty(inst.ListItem.IntegrationExternalId) &&
+                    !string.IsNullOrEmpty(card.IntegrationExternalId) &&
+                    card.User != null && card.User.MicrosoftTodoConnected)
+                {
+                    try
+                    {
+                        var accessToken = await todoService.GetOrRefreshTokenAsync(card.User);
+                        await todoService.UpdateTaskAsync(accessToken, card.IntegrationExternalId, inst.ListItem.IntegrationExternalId, isCompleted: updatedInstance.IsCompleted);
+                    }
+                    catch (System.Exception ex)
+                    {
+                        logger.LogError(ex, "Error syncing task completion with Microsoft To-Do for InstanceId {InstanceId}", instanceId);
+                    }
+                }
+            }
+
             await db.SaveChangesAsync();
 
             return Results.Ok(ToInstanceDto(inst));
@@ -224,10 +389,17 @@ public static class CardEndpoints
         });
 
         // PUT /api/scheduled-instances/{id}
-        instanceGroup.MapPut("/{id:int}", async (int id, ScheduledInstance updatedInstance, LifePlannerDbContext db) =>
+        instanceGroup.MapPut("/{id:int}", async (int id, ScheduledInstance updatedInstance, LifePlannerDbContext db, IMicrosoftTodoService todoService, ILoggerFactory loggerFactory) =>
         {
-            var inst = await db.ScheduledInstances.FirstOrDefaultAsync(s => s.Id == id);
+            var logger = loggerFactory.CreateLogger("CardEndpoints");
+            var inst = await db.ScheduledInstances
+                .Include(si => si.ListItem)
+                    .ThenInclude(li => li!.Card)
+                        .ThenInclude(c => c!.User)
+                .FirstOrDefaultAsync(s => s.Id == id);
             if (inst is null) return Results.NotFound();
+
+            bool completionChanged = inst.IsCompleted != updatedInstance.IsCompleted;
 
             inst.Date = updatedInstance.Date;
             inst.IsCompleted = updatedInstance.IsCompleted;
@@ -238,6 +410,37 @@ public static class CardEndpoints
             inst.EndTime = updatedInstance.EndTime;
             inst.CategoryId = updatedInstance.CategoryId;
             inst.ListItemId = updatedInstance.ListItemId;
+
+            if (completionChanged && inst.ListItem != null)
+            {
+                inst.ListItem.IsCompleted = updatedInstance.IsCompleted;
+
+                // Sync to all other scheduled instances of the same list item
+                var otherInstances = await db.ScheduledInstances
+                    .Where(si => si.ListItemId == inst.ListItemId && si.Id != inst.Id)
+                    .ToListAsync();
+                foreach (var other in otherInstances)
+                {
+                    other.IsCompleted = updatedInstance.IsCompleted;
+                }
+
+                var card = inst.ListItem.Card;
+                if (card?.IntegrationSource == "MicrosoftTodo" &&
+                    !string.IsNullOrEmpty(inst.ListItem.IntegrationExternalId) &&
+                    !string.IsNullOrEmpty(card.IntegrationExternalId) &&
+                    card.User != null && card.User.MicrosoftTodoConnected)
+                {
+                    try
+                    {
+                        var accessToken = await todoService.GetOrRefreshTokenAsync(card.User);
+                        await todoService.UpdateTaskAsync(accessToken, card.IntegrationExternalId, inst.ListItem.IntegrationExternalId, isCompleted: updatedInstance.IsCompleted);
+                    }
+                    catch (System.Exception ex)
+                    {
+                        logger.LogError(ex, "Error syncing task completion with Microsoft To-Do for InstanceId {InstanceId}", id);
+                    }
+                }
+            }
 
             await db.SaveChangesAsync();
 

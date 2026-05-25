@@ -5,6 +5,7 @@ import { DragDropModule, CdkDragDrop } from '@angular/cdk/drag-drop';
 import { Card, ListItem } from '../../../../core/models/planner.models';
 import { CardService } from '../../../../core/services/card.service';
 import { NotificationService } from '../../../../core/services/notification.service';
+import { IntegrationService } from '../../../../core/services/integration.service';
 
 @Component({
   selector: 'app-topic-card',
@@ -45,6 +46,16 @@ import { NotificationService } from '../../../../core/services/notification.serv
               ✕
             </button>
           } @else {
+            @if (card.integrationSource === 'MicrosoftTodo') {
+              <button
+                class="sync-card-btn"
+                [class.syncing]="isSyncing"
+                (click)="$event.stopPropagation(); syncMicrosoftTodo()"
+                title="Sync tasks now"
+                aria-label="Sync tasks">
+                ↻
+              </button>
+            }
             <span class="integration-badge" [class.ms-todo]="card.integrationSource === 'MicrosoftTodo'" [class.google-tasks]="card.integrationSource === 'GoogleTasks'">
               {{ card.integrationSource === 'MicrosoftTodo' ? 'MS Todo' : 'Google Tasks' }}
             </span>
@@ -104,11 +115,11 @@ import { NotificationService } from '../../../../core/services/notification.serv
               } @else {
                 <span
                   class="item-text"
-                  (click)="!card.integrationSource && startEditItem(item)"
-                  [title]="card.integrationSource ? 'Read-only integration item' : 'Click to edit'">
+                  (click)="(!card.integrationSource || card.integrationSource === 'MicrosoftTodo') && startEditItem(item)"
+                  [title]="(card.integrationSource && card.integrationSource !== 'MicrosoftTodo') ? 'Read-only integration item' : 'Click to edit'">
                   {{ item.text }}
                 </span>
-                @if (!card.integrationSource) {
+                @if (!card.integrationSource || card.integrationSource === 'MicrosoftTodo') {
                   <button class="delete-item-btn" (click)="deleteItem(item)" title="Remove item">✕</button>
                 }
               }
@@ -119,7 +130,7 @@ import { NotificationService } from '../../../../core/services/notification.serv
           }
         </ul>
 
-        @if (!card.integrationSource && !isCollapsed) {
+        @if ((!card.integrationSource || card.integrationSource === 'MicrosoftTodo') && !isCollapsed) {
           @if (addingItem) {
             <div class="add-item-row">
               <input
@@ -494,6 +505,35 @@ import { NotificationService } from '../../../../core/services/notification.serv
       color: #38bdf8;
       border: 1px solid rgba(14, 165, 233, 0.25);
     }
+    .sync-card-btn {
+      font-size: 0.8rem;
+      padding: 0.15rem 0.4rem;
+      border-radius: var(--radius-full);
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+      color: var(--text-muted);
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.15s;
+      line-height: 1.4;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .sync-card-btn:hover {
+      background: rgba(16, 185, 129, 0.15);
+      border-color: rgba(16, 185, 129, 0.4);
+      color: #10b981;
+    }
+    .sync-card-btn.syncing {
+      animation: spin 1s linear infinite;
+      color: #10b981;
+      pointer-events: none;
+    }
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
   `]
 })
 export class TopicCardComponent implements OnInit {
@@ -506,6 +546,9 @@ export class TopicCardComponent implements OnInit {
 
   private readonly cardService = inject(CardService);
   private readonly notifications = inject(NotificationService);
+  private readonly integrationService = inject(IntegrationService);
+
+  protected isSyncing = false;
 
   protected addingItem = false;
   protected newItemText = '';
@@ -638,5 +681,22 @@ export class TopicCardComponent implements OnInit {
 
   protected onInputBlur(): void {
     this.cancelAddItem();
+  }
+
+  protected syncMicrosoftTodo(): void {
+    if (this.isSyncing) return;
+    this.isSyncing = true;
+    this.integrationService.syncTodo(this.card.userId).subscribe({
+      next: () => {
+        this.isSyncing = false;
+        this.notifications.show('Microsoft To-Do tasks synced successfully!', 'success');
+        this.cardService.loadCards(this.card.userId);
+      },
+      error: (err) => {
+        this.isSyncing = false;
+        this.notifications.show('Could not sync Microsoft To-Do tasks.', 'error');
+        console.error(err);
+      }
+    });
   }
 }

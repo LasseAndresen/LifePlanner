@@ -9,6 +9,7 @@ import { CalendarService } from '../../core/services/calendar.service';
 import { CategoryService } from '../../core/services/category.service';
 import { UserService } from '../../core/services/user.service';
 import { AuthService } from '../../core/auth/auth.service';
+import { IntegrationService } from '../../core/services/integration.service';
 import { Card, ListItem, ScheduledInstance } from '../../core/models/planner.models';
 import { CdkDragDrop, DragDropModule, CdkDragEnd } from '@angular/cdk/drag-drop';
 import { NotificationService } from '../../core/services/notification.service';
@@ -303,7 +304,10 @@ export class PlannerComponent {
   public readonly categoryService = inject(CategoryService);
   public readonly userService = inject(UserService);
   public readonly authService = inject(AuthService);
+  private readonly integrationService = inject(IntegrationService);
   private readonly notifications = inject(NotificationService);
+
+  private hasAutoSynced = false;
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly cdr = inject(ChangeDetectorRef);
@@ -341,6 +345,20 @@ export class PlannerComponent {
       if (user) {
         this.cardService.loadCards(user.id);
         this.categoryService.loadCategories(user.id);
+
+        if (!this.hasAutoSynced) {
+          this.integrationService.getStatus(user.id).subscribe({
+            next: (status) => {
+              if (status.microsoftTodoConnected && !this.hasAutoSynced) {
+                this.hasAutoSynced = true;
+                this.syncMicrosoftTodo(user.id);
+              }
+            },
+            error: (err) => {
+              console.error('Failed to load integration status for auto-sync:', err);
+            }
+          });
+        }
       }
     });
 
@@ -748,6 +766,17 @@ export class PlannerComponent {
           }, 1000);
         });
       });
+    });
+  }
+
+  private syncMicrosoftTodo(userId: number): void {
+    this.integrationService.syncTodo(userId).subscribe({
+      next: () => {
+        this.cardService.loadCards(userId);
+      },
+      error: (err) => {
+        console.error('Failed to auto-sync Microsoft To-Do:', err);
+      }
     });
   }
 }

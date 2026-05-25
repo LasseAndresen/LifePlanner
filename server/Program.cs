@@ -4,6 +4,7 @@ using LifePlanner.Api.Endpoints;
 using LifePlanner.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Logging.AddFileLogger();
 
 // Add services to the container.
 builder.Services.AddOpenApi();

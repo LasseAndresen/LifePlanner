@@ -41,3 +41,7 @@ Thumbs.db
 .env
 appsettings.Development.json
 *.secret.json
+
+# ==== Logs ====
+/server/logs/
+

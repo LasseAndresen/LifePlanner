@@ -166,9 +166,9 @@ export class CardService {
             }
           });
 
-          // Sync renamed text to active scheduled instances in-memory signal
+          // Sync renamed text and completion status to active scheduled instances in-memory signal
           this.scheduledInstancesSignal.update(insts =>
-            insts.map(s => s.listItemId === updated.id ? { ...s, title: updated.text } : s)
+            insts.map(s => s.listItemId === updated.id ? { ...s, title: updated.text, isCompleted: updated.isCompleted } : s)
           );
         }),
         catchError(err => {
@@ -218,6 +218,17 @@ export class CardService {
           this.scheduledInstancesSignal.update(insts =>
             insts.map(s => s.id === id ? updated : s)
           );
+
+          if (updated.listItemId) {
+            this.cardsSignal.update(cards =>
+              cards.map(c => ({
+                ...c,
+                listItems: c.listItems.map(item =>
+                  item.id === updated.listItemId ? { ...item, isCompleted: updated.isCompleted } : item
+                )
+              }))
+            );
+          }
         }),
         catchError(err => {
           this.notifications.error('Could not update calendar event.');

@@ -9,6 +9,9 @@ public interface IMicrosoftTodoService
     Task<string> GetOrRefreshTokenAsync(User user);
     Task<List<MicrosoftTodoListDto>> GetTodoListsAsync(string accessToken);
     Task<List<MicrosoftTodoTaskDto>> GetTasksAsync(string accessToken, string listId);
+    Task UpdateTaskAsync(string accessToken, string listId, string taskId, string? title = null, bool? isCompleted = null);
+    Task<string> CreateTaskAsync(string accessToken, string listId, string title);
+    Task DeleteTaskAsync(string accessToken, string listId, string taskId);
 }
 
 public record MicrosoftTodoListDto(string Id, string DisplayName);
