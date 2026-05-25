@@ -17,9 +17,15 @@ import { IntegrationService } from '../../../../core/services/integration.servic
       <div class="card-header" cdkDragHandle>
         <div class="header-titles">
           <h4 [title]="card.title">{{ card.title }}</h4>
-          <span class="category-badge" [title]="card.category?.name ?? 'Uncategorized'">
-            {{ card.category?.name ?? 'Uncategorized' }}
-          </span>
+          @if (!card.integrationSource) {
+            <span class="category-badge" [title]="card.category?.name ?? 'Uncategorized'">
+              {{ card.category?.name ?? 'Uncategorized' }}
+            </span>
+          } @else {
+            <span class="integration-badge" [class.ms-todo]="card.integrationSource === 'MicrosoftTodo'" [class.google-tasks]="card.integrationSource === 'GoogleTasks'">
+              {{ card.integrationSource === 'MicrosoftTodo' ? 'MS Todo' : 'Google Tasks' }}
+            </span>
+          }
         </div>
         <div class="header-badges">
           <button
@@ -65,9 +71,6 @@ import { IntegrationService } from '../../../../core/services/integration.servic
                 ↻
               </button>
             }
-            <span class="integration-badge" [class.ms-todo]="card.integrationSource === 'MicrosoftTodo'" [class.google-tasks]="card.integrationSource === 'GoogleTasks'">
-              {{ card.integrationSource === 'MicrosoftTodo' ? 'MS Todo' : 'Google Tasks' }}
-            </span>
           }
         </div>
       </div>
