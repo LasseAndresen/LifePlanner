@@ -336,13 +336,22 @@ public static class CardEndpoints
 
                     try
                     {
-                        var updatedTask = await googleTasksService.MoveTaskAsync(
+                        await googleTasksService.MoveTaskAsync(
                             card.User,
                             card.IntegrationExternalId,
                             movedItem.IntegrationExternalId,
                             previousTaskExtId
                         );
-                        movedItem.Position = updatedTask.Position;
+
+                        var freshTasks = await googleTasksService.GetTasksAsync(card.User, card.IntegrationExternalId);
+                        foreach (var task in freshTasks)
+                        {
+                            var dbItem = card.ListItems.FirstOrDefault(li => li.IntegrationExternalId == task.Id);
+                            if (dbItem != null)
+                            {
+                                dbItem.Position = task.Position;
+                            }
+                        }
                     }
                     catch (System.Exception ex)
                     {

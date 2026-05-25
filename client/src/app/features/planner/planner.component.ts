@@ -497,12 +497,11 @@ export class PlannerComponent {
         const cardId = parseInt(currId.replace('card-items-', ''), 10);
         const card = this.cardService.unscheduledCards().find(c => c.id === cardId);
         if (card && card.listItems) {
+          // Mutate CDK's bound array in-place — CDK already knows the new order,
+          // no need to replace the array reference via updateCardItems.
           moveItemInArray(event.container.data, event.previousIndex, event.currentIndex);
-          
-          const updatedItems = [...event.container.data];
-          this.cardService.updateCardItems(cardId, () => updatedItems);
 
-          const itemIds = updatedItems.map(item => item.id);
+          const itemIds = (event.container.data as ListItem[]).map(item => item.id);
           this.cardService.reorderChecklistItems(cardId, data.item.id, itemIds).subscribe();
         }
       }
