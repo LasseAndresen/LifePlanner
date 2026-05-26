@@ -60,6 +60,8 @@ public static class CardEndpoints
             card.IsChecklist = updatedCard.IsChecklist;
             card.WhiteboardX = updatedCard.WhiteboardX;
             card.WhiteboardY = updatedCard.WhiteboardY;
+            card.IsStickyNote = updatedCard.IsStickyNote;
+            card.Color = updatedCard.Color;
 
             await repo.UpdateAsync(card);
 
@@ -694,6 +696,8 @@ public static class CardEndpoints
         IntegrationExternalId = c.IntegrationExternalId,
         WhiteboardX = c.WhiteboardX,
         WhiteboardY = c.WhiteboardY,
+        IsStickyNote = c.IsStickyNote,
+        Color = c.Color,
         Category = c.Category != null ? new CategoryDto
         {
             Id = c.Category.Id,

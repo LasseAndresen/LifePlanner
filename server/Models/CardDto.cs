@@ -17,6 +17,9 @@ public class CardDto
     public string? IntegrationExternalId { get; set; }
     public double? WhiteboardX { get; set; }
     public double? WhiteboardY { get; set; }
+
+    public bool IsStickyNote { get; set; }
+    public string? Color { get; set; }
 }
 
 public class CategoryDto

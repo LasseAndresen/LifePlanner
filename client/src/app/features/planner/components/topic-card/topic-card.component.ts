@@ -14,7 +14,7 @@ import { IntegrationService } from '../../../../core/services/integration.servic
   template: `
     <div class="topic-card glass-panel" [class.collapsed]="isCollapsed" [style.border-left-color]="card.category?.color ?? '#6366f1'">
 
-      <div class="card-header" cdkDragHandle>
+      <div class="card-header" (mousedown)="onHeaderMouseDown($event)" cdkDragHandle>
         <div class="header-titles">
           <h4 [title]="card.title">{{ card.title }}</h4>
           @if (!card.integrationSource) {
@@ -574,6 +574,7 @@ export class TopicCardComponent implements OnInit {
   @Input() connectedTo: string[] = [];
   @Output() editClicked = new EventEmitter<void>();
   @Output() itemDropped = new EventEmitter<CdkDragDrop<any>>();
+  @Output() dragStarted = new EventEmitter<MouseEvent>();
   @ViewChild('newItemInput') newItemInput?: ElementRef<HTMLInputElement>;
   @ViewChildren('editItemInput') editItemInputs?: QueryList<ElementRef<HTMLInputElement>>;
 
@@ -644,6 +645,16 @@ export class TopicCardComponent implements OnInit {
 
   protected editCard(): void {
     this.editClicked.emit();
+  }
+
+  protected onHeaderMouseDown(event: MouseEvent): void {
+    if ((event.target as HTMLElement).closest('.collapse-btn') || 
+        (event.target as HTMLElement).closest('.edit-card-btn') || 
+        (event.target as HTMLElement).closest('.delete-card-btn') ||
+        (event.target as HTMLElement).closest('.sync-card-btn')) {
+      return;
+    }
+    this.dragStarted.emit(event);
   }
 
   protected deleteCard(): void {

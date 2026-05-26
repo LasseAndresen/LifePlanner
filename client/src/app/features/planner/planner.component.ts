@@ -774,28 +774,33 @@ export class PlannerComponent {
       const firstRect = firstRects.get(cardId);
       if (!firstRect) return;
 
+      // Lock unscaled layout width to prevent stretching to transitioning parent (210px for sticky notes, 288px for topic cards)
+      const card = this.cardService.unscheduledCards().find(c => c.id === cardId);
+      const isSticky = card?.isStickyNote || htmlEl.classList.contains('list-sticky-note') || htmlEl.classList.contains('sticky-note-item');
+      htmlEl.style.width = isSticky ? '210px' : '288px';
       const lastRect = htmlEl.getBoundingClientRect();
 
       const dx = firstRect.left - lastRect.left;
       const dy = firstRect.top - lastRect.top;
-      const dw = firstRect.width;
+      const sw = lastRect.width > 0 ? (firstRect.width / lastRect.width) : 1;
+      const sh = lastRect.height > 0 ? (firstRect.height / lastRect.height) : 1;
 
       // Apply "First" styling instantly in the same paint cycle
+      htmlEl.style.transformOrigin = '0 0';
       htmlEl.style.transition = 'none';
-      htmlEl.style.transform = `translate3d(${dx}px, ${dy}px, 0)`;
-      htmlEl.style.width = `${dw}px`;
+      htmlEl.style.transform = `translate3d(${dx}px, ${dy}px, 0) scale(${sw}, ${sh})`;
       htmlEl.style.zIndex = '1000';
 
-      // Play transition to zero-translate (the final destination layout)
+      // Play transition to zero-translate and scale=1 (the final destination layout)
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
-          htmlEl.style.transition = 'transform 1.0s cubic-bezier(0.25, 0.8, 0.25, 1), width 1.0s cubic-bezier(0.25, 0.8, 0.25, 1)';
-          htmlEl.style.transform = 'translate3d(0, 0, 0)';
-          htmlEl.style.width = '';
+          htmlEl.style.transition = 'transform 1.0s cubic-bezier(0.25, 0.8, 0.25, 1)';
+          htmlEl.style.transform = 'translate3d(0, 0, 0) scale(1, 1)';
 
           setTimeout(() => {
             htmlEl.style.transition = '';
             htmlEl.style.transform = '';
+            htmlEl.style.transformOrigin = '';
             htmlEl.style.width = '';
             htmlEl.style.zIndex = '';
           }, 1000);

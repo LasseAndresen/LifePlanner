@@ -1,43 +1,67 @@
-import { Component, EventEmitter, Input, Output, HostListener, ElementRef, inject } from '@angular/core';
+import { Component, EventEmitter, Input, Output, HostListener, ElementRef, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Card, Category } from '../../../../core/models/planner.models';
 import { TopicCardComponent } from '../topic-card/topic-card.component';
-import { DragDropModule, CdkDragDrop, moveItemInArray, CdkDragEnd } from '@angular/cdk/drag-drop';
+import { StickyNoteComponent } from '../sticky-note/sticky-note.component';
+import { DragDropModule, CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-drop';
+import { CardService } from '../../../../core/services/card.service';
+import { UserService } from '../../../../core/services/user.service';
 
 @Component({
   selector: 'app-card-sidebar',
   standalone: true,
-  imports: [CommonModule, TopicCardComponent, DragDropModule],
+  imports: [CommonModule, TopicCardComponent, StickyNoteComponent, DragDropModule],
   template: `
     <div class="sidebar-container glass-panel" [class.whiteboard-mode]="viewMode === 'whiteboard'">
 
       @if (viewMode === 'whiteboard') {
-        <div class="whiteboard-header">
-          <h3>Whiteboard Workspace</h3>
-          <p class="subtitle">Drag cards freely and organize your ideas</p>
+        <!-- Floating controls for canvas reset & new sticky note -->
+        <div class="whiteboard-controls-overlay" (click)="stopPropagation($event)">
+          <button class="control-btn" (click)="recenterCanvas()" title="Reset Zoom & Pan">⌖ Recenter</button>
+          <button class="control-btn" (click)="spawnStickyNoteAtCenter()" title="Add Sticky Note">+ Note</button>
+          <button class="control-btn" (click)="addCardClicked.emit()" title="Add Topic Card">+ Card</button>
+          <span class="zoom-indicator">Zoom: {{ Math.round(zoomScale() * 100) }}%</span>
         </div>
 
-        <div class="card-list whiteboard-layout">
-          @for (card of cards; track card.id) {
-            <app-topic-card
-              class="sidebar-card-item whiteboard-mode"
-              [attr.data-card-id]="card.id"
-              cdkDrag
-              [card]="card"
-              [connectedTo]="connectedTo"
-              [style.left.px]="getCardX(card)"
-              [style.top.px]="getCardY(card)"
-              (editClicked)="editCardClicked.emit(card)"
-              (itemDropped)="itemDropped.emit($event)"
-              (cdkDragEnded)="onDragEnded($event, card)"
-            >
-            </app-topic-card>
-          }
+        <div 
+          class="whiteboard-viewport" 
+          (mousedown)="onViewportMouseDown($event)"
+          (wheel)="onViewportWheel($event)">
+          
+          <div 
+            class="whiteboard-canvas" 
+            [style.transform]="canvasTransform()"
+            (dblclick)="onCanvasDoubleClick($event)">
+            
+            @for (card of cards; track card.id) {
+              @if (card.isStickyNote) {
+                <app-sticky-note
+                  class="sidebar-card-item whiteboard-mode sticky-note-item"
+                  [attr.data-card-id]="card.id"
+                  [card]="card"
+                  viewMode="whiteboard"
+                  [style.left.px]="getCardX(card)"
+                  [style.top.px]="getCardY(card)"
+                  (dragStarted)="onCardDragStart($event, card)"
+                  (deleted)="onCardDeleted(card)">
+                </app-sticky-note>
+              } @else {
+                <app-topic-card
+                  class="sidebar-card-item whiteboard-mode topic-card-item"
+                  [attr.data-card-id]="card.id"
+                  [card]="card"
+                  [connectedTo]="connectedTo"
+                  [style.left.px]="getCardX(card)"
+                  [style.top.px]="getCardY(card)"
+                  (editClicked)="editCardClicked.emit(card)"
+                  (itemDropped)="itemDropped.emit($event)"
+                  (dragStarted)="onCardDragStart($event, card)"
+                >
+                </app-topic-card>
+              }
+            }
+          </div>
         </div>
-
-        <button class="fab-add-card" (click)="addCardClicked.emit()" title="Create New Card" id="whiteboard-fab-add">
-          <span class="plus-icon">+</span> New Card
-        </button>
 
       } @else {
         <div class="sidebar-header">
@@ -91,16 +115,27 @@ import { DragDropModule, CdkDragDrop, moveItemInArray, CdkDragEnd } from '@angul
 
         <div class="card-list" cdkDropList [cdkDropListData]="filteredCards" (cdkDropListDropped)="onDrop($event)">
           @for (card of filteredCards; track card.id) {
-            <app-topic-card
-              class="sidebar-card-item"
-              [attr.data-card-id]="card.id"
-              cdkDrag
-              [card]="card"
-              [connectedTo]="connectedTo"
-              (editClicked)="editCardClicked.emit(card)"
-              (itemDropped)="itemDropped.emit($event)"
-            >
-            </app-topic-card>
+            @if (card.isStickyNote) {
+              <app-sticky-note
+                class="sidebar-card-item list-sticky-note"
+                [attr.data-card-id]="card.id"
+                cdkDrag
+                [card]="card"
+                viewMode="calendar"
+                (deleted)="onCardDeleted(card)">
+              </app-sticky-note>
+            } @else {
+              <app-topic-card
+                class="sidebar-card-item"
+                [attr.data-card-id]="card.id"
+                cdkDrag
+                [card]="card"
+                [connectedTo]="connectedTo"
+                (editClicked)="editCardClicked.emit(card)"
+                (itemDropped)="itemDropped.emit($event)"
+              >
+              </app-topic-card>
+            }
           } @empty {
             <div class="empty-state">
               <p class="empty-icon">✦</p>
@@ -136,14 +171,12 @@ import { DragDropModule, CdkDragDrop, moveItemInArray, CdkDragEnd } from '@angul
       box-sizing: border-box;
       overflow: hidden;
       transition: background 1.0s ease-in-out, padding 1.0s ease-in-out;
+      position: relative;
     }
     .sidebar-container.whiteboard-mode {
       border: none;
-      background: #08080e;
-      background-image: radial-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px);
-      background-size: 24px 24px;
-      overflow: auto;
-      padding: 2rem;
+      background: #06060c;
+      padding: 0;
     }
     .sidebar-header {
       display: flex;
@@ -271,21 +304,6 @@ import { DragDropModule, CdkDragDrop, moveItemInArray, CdkDragEnd } from '@angul
       display: inline-block;
       box-shadow: 0 0 4px currentColor;
     }
-    .whiteboard-header {
-      margin-bottom: 1.5rem;
-      flex-shrink: 0;
-      animation: fadeIn 0.4s ease;
-    }
-    .whiteboard-header h3 {
-      font-size: 1.5rem;
-      font-weight: 700;
-      color: var(--text-primary);
-      margin-bottom: 0.25rem;
-    }
-    .whiteboard-header .subtitle {
-      font-size: 0.85rem;
-      color: var(--text-muted);
-    }
     h2 {
       font-size: 1.4rem;
       font-weight: 700;
@@ -325,31 +343,26 @@ import { DragDropModule, CdkDragDrop, moveItemInArray, CdkDragEnd } from '@angul
       min-height: 0;
       padding-right: 0.5rem;
     }
-    .card-list.whiteboard-layout {
-      position: relative;
-      width: 100%;
-      height: 100%;
-      min-height: 1200px;
-      min-width: 1600px;
-      overflow: visible;
-      padding: 0;
-    }
     .sidebar-card-item {
       display: block;
       width: 100%;
       box-sizing: border-box;
-      transition: transform 1.0s cubic-bezier(0.25, 0.8, 0.25, 1);
     }
     .sidebar-card-item.whiteboard-mode {
       position: absolute;
-      width: 288px;
       z-index: 5;
       margin-bottom: 0;
+      border-radius: var(--radius-lg);
+      transition: left 0.5s cubic-bezier(0.34, 1.56, 0.64, 1), top 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .sidebar-card-item.list-sticky-note {
+      width: 210px !important;
+      height: 210px !important;
+      margin: 0 auto 0.75rem auto;
       cursor: grab;
-      box-shadow: var(--shadow-glass);
       border-radius: var(--radius-lg);
     }
-    .sidebar-card-item.whiteboard-mode:active {
+    .sidebar-card-item.list-sticky-note:active {
       cursor: grabbing;
     }
 
@@ -365,38 +378,88 @@ import { DragDropModule, CdkDragDrop, moveItemInArray, CdkDragEnd } from '@angul
     .empty-hint { font-size: 0.8rem; }
     .empty-hint strong { color: var(--text-secondary); }
 
-    .fab-add-card {
-      position: fixed;
-      bottom: 2rem;
-      right: 2rem;
-      background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
-      border: none;
-      border-radius: var(--radius-full);
-      padding: 0.75rem 1.5rem;
-      color: #fff;
-      font-weight: 600;
-      font-size: 0.95rem;
-      cursor: pointer;
+    /* New Whiteboard Canvas Layout Elements */
+    .whiteboard-controls-overlay {
+      position: absolute;
+      top: 1.5rem;
+      right: 1.5rem;
+      z-index: 1000;
       display: flex;
       align-items: center;
-      gap: 0.5rem;
-      box-shadow: 0 4px 20px rgba(99, 102, 241, 0.4);
-      transition: all 0.2s ease;
-      z-index: 100;
-    }
-    .fab-add-card:hover {
-      transform: scale(1.05) translateY(-2px);
-      box-shadow: 0 6px 24px rgba(99, 102, 241, 0.6);
-      opacity: 0.95;
-    }
-    .plus-icon {
-      font-size: 1.2rem;
-      font-weight: 700;
+      gap: 0.75rem;
+      padding: 0.5rem 1rem;
+      background: rgba(10, 10, 18, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: var(--radius-full);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+      user-select: none;
     }
 
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(5px); }
-      to { opacity: 1; transform: translateY(0); }
+    .control-btn {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: var(--text-primary);
+      padding: 0.35rem 0.85rem;
+      border-radius: var(--radius-full);
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-family: var(--font-family);
+    }
+
+    .control-btn:hover {
+      background: var(--accent-primary);
+      color: white;
+      border-color: transparent;
+      transform: translateY(-1px);
+    }
+
+    .zoom-indicator {
+      font-size: 0.8rem;
+      font-weight: bold;
+      color: var(--text-secondary);
+      border-left: 1px solid rgba(255, 255, 255, 0.15);
+      padding-left: 0.75rem;
+      min-width: 80px;
+      text-align: center;
+    }
+
+    .whiteboard-viewport {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      position: relative;
+      cursor: grab;
+      background: #05050a;
+      background-image: radial-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+      background-size: 24px 24px;
+    }
+
+    .whiteboard-viewport:active {
+      cursor: grabbing;
+    }
+
+    .whiteboard-canvas {
+      position: absolute;
+      width: 4000px;
+      height: 3000px;
+      top: 0;
+      left: 0;
+      transform-origin: 0 0;
+      will-change: transform;
+      pointer-events: auto;
+    }
+
+    .sticky-note-item {
+      width: 210px !important;
+      height: 210px !important;
+    }
+
+    .topic-card-item {
+      width: 320px !important;
     }
   `]
 })
@@ -409,11 +472,24 @@ export class CardSidebarComponent {
   @Output() editCardClicked = new EventEmitter<Card>();
   @Output() itemDropped = new EventEmitter<CdkDragDrop<any>>();
   @Output() cardsReordered = new EventEmitter<Card[]>();
-  @Output() cardDragEnded = new EventEmitter<{ event: CdkDragEnd; card: Card }>();
+  @Output() cardDragEnded = new EventEmitter<{ event: any; card: Card }>();
 
   private readonly elementRef = inject(ElementRef);
+  private readonly cardService = inject(CardService);
+  private readonly userService = inject(UserService);
+
   protected dropdownOpen = false;
   protected selectedCategoryIds = new Set<number>();
+
+  // Whiteboard Canvas Panning & Zooming signals
+  protected readonly panX = signal(0);
+  protected readonly panY = signal(0);
+  protected readonly zoomScale = signal(1.0);
+  protected readonly Math = Math;
+
+  protected readonly canvasTransform = computed(() => {
+    return `translate3d(${this.panX()}px, ${this.panY()}px, 0) scale(${this.zoomScale()})`;
+  });
 
   protected get filteredCards(): Card[] {
     if (this.selectedCategoryIds.size === 0) {
@@ -441,6 +517,10 @@ export class CardSidebarComponent {
     this.selectedCategoryIds.clear();
   }
 
+  protected stopPropagation(event: MouseEvent): void {
+    event.stopPropagation();
+  }
+
   @HostListener('document:click', ['$event'])
   onDocumentClick(event: MouseEvent): void {
     if (!this.elementRef.nativeElement.contains(event.target)) {
@@ -466,12 +546,6 @@ export class CardSidebarComponent {
       }
     } else {
       this.itemDropped.emit(event);
-    }
-  }
-
-  onDragEnded(event: CdkDragEnd, card: Card): void {
-    if (this.viewMode === 'whiteboard') {
-      this.cardDragEnded.emit({ event, card });
     }
   }
 
@@ -503,5 +577,269 @@ export class CardSidebarComponent {
       x: startX + col * (cardWidth + gap),
       y: startY + row * (cardHeight + gap)
     };
+  }
+
+  // --- Zooming & Panning logic ---
+
+  protected onViewportMouseDown(event: MouseEvent): void {
+    if (event.button !== 0) return; // Only drag pan on left-click
+    
+    const target = event.target as HTMLElement;
+    // Do not pan if clicking inside card content or picker overlays
+    if (target.closest('app-topic-card') || 
+        target.closest('app-sticky-note') || 
+        target.closest('.whiteboard-controls-overlay') ||
+        target.closest('.color-picker-menu')) {
+      return;
+    }
+
+    // Blur any active element (like a note textarea) when clicking outside to exit edit mode
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+
+    event.preventDefault();
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const initialPanX = this.panX();
+    const initialPanY = this.panY();
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const dx = moveEvent.clientX - startX;
+      const dy = moveEvent.clientY - startY;
+      this.panX.set(initialPanX + dx);
+      this.panY.set(initialPanY + dy);
+    };
+
+    const onMouseUp = () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  }
+
+  protected onViewportWheel(event: WheelEvent): void {
+    event.preventDefault();
+
+    const zoomIntensity = 0.06;
+    const minScale = 0.25;
+    const maxScale = 3.0;
+
+    const viewportEl = this.elementRef.nativeElement.querySelector('.whiteboard-viewport');
+    if (!viewportEl) return;
+
+    const rect = viewportEl.getBoundingClientRect();
+    const mouseX = event.clientX - rect.left;
+    const mouseY = event.clientY - rect.top;
+
+    const oldScale = this.zoomScale();
+    const scrollDelta = event.deltaY < 0 ? 1 : -1;
+    let newScale = oldScale + scrollDelta * zoomIntensity;
+    newScale = Math.max(minScale, Math.min(maxScale, newScale));
+
+    // Calculate canvas coordinates of the cursor before zoom
+    const canvasX = (mouseX - this.panX()) / oldScale;
+    const canvasY = (mouseY - this.panY()) / oldScale;
+
+    // Set new scale
+    this.zoomScale.set(newScale);
+
+    // Shift pan offset to center zoom on mouse cursor
+    this.panX.set(mouseX - canvasX * newScale);
+    this.panY.set(mouseY - canvasY * newScale);
+  }
+
+  protected recenterCanvas(): void {
+    this.zoomScale.set(1.0);
+    this.panX.set(0);
+    this.panY.set(0);
+  }
+
+  protected spawnStickyNoteAtCenter(): void {
+    const viewportEl = this.elementRef.nativeElement.querySelector('.whiteboard-viewport');
+    const width = viewportEl ? viewportEl.clientWidth : 800;
+    const height = viewportEl ? viewportEl.clientHeight : 600;
+
+    const centerX = (width / 2 - this.panX()) / this.zoomScale();
+    const centerY = (height / 2 - this.panY()) / this.zoomScale();
+
+    // Spawns note slightly centered (210px note size -> offsets of 105px)
+    this.createStickyNoteAt(centerX - 105, centerY - 105);
+  }
+
+  protected onCanvasDoubleClick(event: MouseEvent): void {
+    const target = event.target as HTMLElement;
+    // Don't spawn when double-clicking elements
+    if (target.closest('app-topic-card') || 
+        target.closest('app-sticky-note') || 
+        target.closest('.whiteboard-controls-overlay')) {
+      return;
+    }
+
+    const viewportEl = this.elementRef.nativeElement.querySelector('.whiteboard-viewport');
+    if (!viewportEl) return;
+
+    const rect = viewportEl.getBoundingClientRect();
+    const mouseX = event.clientX - rect.left;
+    const mouseY = event.clientY - rect.top;
+
+    const x = (mouseX - this.panX()) / this.zoomScale();
+    const y = (mouseY - this.panY()) / this.zoomScale();
+
+    this.createStickyNoteAt(x - 105, y - 40);
+  }
+
+  private createStickyNoteAt(x: number, y: number): void {
+    const user = this.userService.currentUser();
+    if (!user) return;
+
+    const defaultCategoryId = this.categories.length > 0 ? this.categories[0].id : 1;
+
+    this.cardService.createCard({
+      title: 'New Note', // Temp placeholder title to pass backend validation
+      description: '',
+      isChecklist: false,
+      categoryId: defaultCategoryId,
+      userId: user.id,
+      isStickyNote: true,
+      color: '#fef08a',
+      whiteboardX: Math.round(x),
+      whiteboardY: Math.round(y),
+      listItems: []
+    }).subscribe();
+  }
+
+  // --- Custom scale-aware dragging logic ---
+
+  protected onCardDragStart(event: MouseEvent, card: Card): void {
+    if (event.button !== 0) return; // Only left-click drag
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    // Find the DOM element of the card being dragged
+    const dragTarget = (event.target as HTMLElement).closest('.sidebar-card-item') as HTMLElement;
+    if (!dragTarget) return;
+
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const initialX = this.getCardX(card);
+    const initialY = this.getCardY(card);
+    const scale = this.zoomScale();
+
+    // Temporarily elevate z-index and disable transitions while dragging
+    const originalZIndex = dragTarget.style.zIndex;
+    dragTarget.style.zIndex = '1000';
+    dragTarget.style.transition = 'none';
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      // Divide coordinates shift by scale factor
+      const dx = (moveEvent.clientX - startX) / scale;
+      const dy = (moveEvent.clientY - startY) / scale;
+
+      const newX = Math.round(initialX + dx);
+      const newY = Math.round(initialY + dy);
+
+      // Directly update DOM styles for 60fps drag performance
+      dragTarget.style.left = `${newX}px`;
+      dragTarget.style.top = `${newY}px`;
+
+      // Mutate coordinates locally
+      card.whiteboardX = newX;
+      card.whiteboardY = newY;
+    };
+
+    const onMouseUp = () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+
+      // Reset z-index and restore standard CSS spring transitions
+      dragTarget.style.zIndex = originalZIndex;
+      dragTarget.style.transition = '';
+      void dragTarget.offsetHeight; // Force reflow to register cleared transition
+
+      const cards = this.cards;
+      const resolved = this.resolveOverlap(card.id, card.whiteboardX || 0, card.whiteboardY || 0, cards);
+
+      card.whiteboardX = resolved.x;
+      card.whiteboardY = resolved.y;
+
+      // Update styles with resolved coordinates
+      dragTarget.style.left = `${resolved.x}px`;
+      dragTarget.style.top = `${resolved.y}px`;
+
+      // Sync coordinate updates to database
+      this.cardService.updateCard(card.id, {
+        whiteboardX: resolved.x,
+        whiteboardY: resolved.y
+      }).subscribe();
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  }
+
+  protected onCardDeleted(card: Card): void {
+    // Canvas updates automatically via signal data flow from CardService
+  }
+
+  // Self-contained overlap resolver to prevent notes/cards overlapping on canvas drop
+  private resolveOverlap(cardId: number, targetX: number, targetY: number, cards: Card[]): { x: number, y: number } {
+    const getCardSize = (id: number) => {
+      const el = document.querySelector(`.sidebar-card-item[data-card-id="${id}"]`);
+      if (el) {
+        return { w: el.clientWidth || 320, h: el.clientHeight || 250 };
+      }
+      const isSticky = cards.find(c => c.id === id)?.isStickyNote;
+      return isSticky ? { w: 210, h: 210 } : { w: 320, h: 250 };
+    };
+
+    const targetSize = getCardSize(cardId);
+    let resolvedX = Math.max(16, targetX);
+    let resolvedY = Math.max(16, targetY);
+
+    let hasOverlap = true;
+    let iterations = 0;
+    const maxIterations = 50;
+
+    while (hasOverlap && iterations < maxIterations) {
+      hasOverlap = false;
+      iterations++;
+
+      for (const other of cards) {
+        if (other.id === cardId) continue;
+
+        const otherX = this.getCardX(other);
+        const otherY = this.getCardY(other);
+        const otherSize = getCardSize(other.id);
+
+        const overlapX = Math.max(0, Math.min(resolvedX + targetSize.w, otherX + otherSize.w) - Math.max(resolvedX, otherX));
+        const overlapY = Math.max(0, Math.min(resolvedY + targetSize.h, otherY + otherSize.h) - Math.max(resolvedY, otherY));
+
+        if (overlapX > 0 && overlapY > 0) {
+          hasOverlap = true;
+          if (overlapX < overlapY) {
+            if (resolvedX < otherX) {
+              resolvedX -= overlapX;
+            } else {
+              resolvedX += overlapX;
+            }
+          } else {
+            if (resolvedY < otherY) {
+              resolvedY -= overlapY;
+            } else {
+              resolvedY += overlapY;
+            }
+          }
+          resolvedX = Math.max(16, resolvedX);
+          resolvedY = Math.max(16, resolvedY);
+          break;
+        }
+      }
+    }
+
+    return { x: Math.round(resolvedX), y: Math.round(resolvedY) };
   }
 }

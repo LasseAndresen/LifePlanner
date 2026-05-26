@@ -24,4 +24,7 @@ public class Card
 
     public double? WhiteboardX { get; set; }
     public double? WhiteboardY { get; set; }
+
+    public bool IsStickyNote { get; set; } = false;
+    public string? Color { get; set; }
 }

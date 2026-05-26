@@ -79,6 +79,8 @@ export interface Card {
   category?: Category;   // Populated when the backend includes the navigation property
   whiteboardX?: number;
   whiteboardY?: number;
+  isStickyNote?: boolean;
+  color?: string;
 }
 
 export interface GoogleCalendarEvent {
