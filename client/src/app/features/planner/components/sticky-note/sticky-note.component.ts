@@ -33,7 +33,6 @@ import { CardService } from '../../../../core/services/card.service';
           [readonly]="!editing"
           [(ngModel)]="editText"
           (click)="onTextareaClick($event)"
-          (keydown.enter)="onEnterPressed($event)"
           (keydown.escape)="cancelEdit()"
           (blur)="finishEdit()"
           placeholder="Click to edit..."></textarea>
@@ -305,14 +304,7 @@ export class StickyNoteComponent {
     }
   }
 
-  protected onEnterPressed(event: Event): void {
-    // If shift is pressed, allow normal newline. Otherwise, save the text.
-    const keyEvent = event as KeyboardEvent;
-    if (!keyEvent.shiftKey) {
-      keyEvent.preventDefault();
-      this.finishEdit();
-    }
-  }
+
 
   protected finishEdit(): void {
     if (!this.editing) return;
