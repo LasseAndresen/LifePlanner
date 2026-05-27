@@ -89,6 +89,28 @@ public class IntegrationService : IIntegrationService
         return new IntegrationStatusDto(user.MicrosoftTodoConnected, user.GoogleTasksConnected);
     }
 
+    private async Task<int> GetDefaultWorkspaceIdAsync(int userId)
+    {
+        var workspaceUser = await _context.WorkspaceUsers
+            .Where(wu => wu.UserId == userId)
+            .OrderBy(wu => wu.Role == "Owner" ? 0 : 1)
+            .ThenBy(wu => wu.WorkspaceId)
+            .FirstOrDefaultAsync();
+
+        if (workspaceUser == null)
+        {
+            var workspace = new Workspace { Name = "Personal Workspace" };
+            _context.Workspaces.Add(workspace);
+            await _context.SaveChangesAsync();
+
+            workspaceUser = new WorkspaceUser { WorkspaceId = workspace.Id, UserId = userId, Role = "Owner" };
+            _context.WorkspaceUsers.Add(workspaceUser);
+            await _context.SaveChangesAsync();
+        }
+
+        return workspaceUser.WorkspaceId;
+    }
+
     public async Task<IntegrationStatusDto> DisconnectAsync(int userId, string provider)
     {
         _logger.LogInformation("Attempting to disconnect integration provider '{Provider}' for User {UserId}.", provider, userId);
@@ -98,6 +120,8 @@ public class IntegrationService : IIntegrationService
             _logger.LogError("Disconnection failed: User {UserId} not found.", userId);
             throw new KeyNotFoundException("User not found");
         }
+
+        var workspaceId = await GetDefaultWorkspaceIdAsync(userId);
 
         if (provider.Equals("MicrosoftTodo", StringComparison.OrdinalIgnoreCase))
         {
@@ -109,7 +133,7 @@ public class IntegrationService : IIntegrationService
             // Delete imported MS Todo cards and orphan their scheduled instances
             var todoCards = await _context.Cards
                 .Include(c => c.ListItems)
-                .Where(c => c.UserId == userId && c.IntegrationSource == "MicrosoftTodo")
+                .Where(c => c.WorkspaceId == workspaceId && c.IntegrationSource == "MicrosoftTodo")
                 .ToListAsync();
 
             _logger.LogInformation("Removing {CardCount} Microsoft To-Do cards and orphaning associated checklist items for User {UserId}.", todoCards.Count, userId);
@@ -153,7 +177,7 @@ public class IntegrationService : IIntegrationService
             // Delete imported Google Tasks cards and orphan their scheduled instances
             var keepCards = await _context.Cards
                 .Include(c => c.ListItems)
-                .Where(c => c.UserId == userId && c.IntegrationSource == "GoogleTasks")
+                .Where(c => c.WorkspaceId == workspaceId && c.IntegrationSource == "GoogleTasks")
                 .ToListAsync();
 
             _logger.LogInformation("Removing {CardCount} Google Tasks cards and orphaning associated checklist items for User {UserId}.", keepCards.Count, userId);
@@ -208,8 +232,10 @@ public class IntegrationService : IIntegrationService
             throw new InvalidOperationException("Google Tasks is not connected.");
         }
 
+        var workspaceId = await GetDefaultWorkspaceIdAsync(userId);
+
         var importedIds = await _context.Cards
-            .Where(c => c.UserId == userId && c.IntegrationSource == "GoogleTasks")
+            .Where(c => c.WorkspaceId == workspaceId && c.IntegrationSource == "GoogleTasks")
             .Select(c => c.IntegrationExternalId)
             .ToListAsync();
 
@@ -247,19 +273,21 @@ public class IntegrationService : IIntegrationService
             throw new InvalidOperationException("Google Tasks is not connected.");
         }
 
+        var workspaceId = await GetDefaultWorkspaceIdAsync(userId);
+
         var category = await _context.Categories
-            .FirstOrDefaultAsync(c => c.UserId == userId && c.Name == "Google Tasks");
+            .FirstOrDefaultAsync(c => c.WorkspaceId == workspaceId && c.Name == "Google Tasks");
         if (category == null)
         {
             _logger.LogInformation("Google Tasks category not found. Creating a default category for User {UserId}.", userId);
-            category = new Category { Name = "Google Tasks", Color = "#2563eb", UserId = userId };
+            category = new Category { Name = "Google Tasks", Color = "#2563eb", WorkspaceId = workspaceId, UserId = userId };
             _context.Categories.Add(category);
             await _context.SaveChangesAsync();
         }
 
         // 1. Remove cards that are no longer selected
         var cardsToRemove = await _context.Cards
-            .Where(c => c.UserId == userId && c.IntegrationSource == "GoogleTasks" && !externalIds.Contains(c.IntegrationExternalId!))
+            .Where(c => c.WorkspaceId == workspaceId && c.IntegrationSource == "GoogleTasks" && !externalIds.Contains(c.IntegrationExternalId!))
             .ToListAsync();
         
         if (cardsToRemove.Any())
@@ -294,6 +322,7 @@ public class IntegrationService : IIntegrationService
                     Description = "Synced from Google Tasks",
                     CategoryId = category.Id,
                     UserId = userId,
+                    WorkspaceId = workspaceId,
                     IsChecklist = true,
                     IntegrationSource = "GoogleTasks",
                     IntegrationExternalId = externalId,
@@ -355,7 +384,7 @@ public class IntegrationService : IIntegrationService
             .Include(c => c.Category)
             .Include(c => c.ListItems)
                 .ThenInclude(li => li.ScheduledInstances)
-            .Where(c => c.UserId == userId && c.IntegrationSource == "GoogleTasks")
+            .Where(c => c.WorkspaceId == workspaceId && c.IntegrationSource == "GoogleTasks")
             .ToListAsync();
 
         return keepCards.Select(ToDto).ToList();
@@ -364,8 +393,9 @@ public class IntegrationService : IIntegrationService
     public async Task<List<CardDto>> SyncGoogleTasksAsync(int userId)
     {
         _logger.LogInformation("Starting Google Tasks synchronization for User {UserId}.", userId);
+        var workspaceId = await GetDefaultWorkspaceIdAsync(userId);
         var externalIds = await _context.Cards
-            .Where(c => c.UserId == userId && c.IntegrationSource == "GoogleTasks" && c.IntegrationExternalId != null)
+            .Where(c => c.WorkspaceId == workspaceId && c.IntegrationSource == "GoogleTasks" && c.IntegrationExternalId != null)
             .Select(c => c.IntegrationExternalId!)
             .ToListAsync();
 
@@ -404,12 +434,14 @@ public class IntegrationService : IIntegrationService
 
         _logger.LogDebug("Fetched {Count} active tasks from Microsoft To-Do default list '{ListName}' ({ListId}).", activeTasks.Count, defaultList.DisplayName, defaultList.Id);
 
+        var workspaceId = await GetDefaultWorkspaceIdAsync(userId);
+
         var category = await _context.Categories
-            .FirstOrDefaultAsync(c => c.UserId == userId && c.Name == "Microsoft TODO");
+            .FirstOrDefaultAsync(c => c.WorkspaceId == workspaceId && c.Name == "Microsoft TODO");
         if (category == null)
         {
             _logger.LogInformation("Microsoft TODO category not found. Creating a default category for User {UserId}.", userId);
-            category = new Category { Name = "Microsoft TODO", Color = "#2563eb", UserId = userId };
+            category = new Category { Name = "Microsoft TODO", Color = "#2563eb", WorkspaceId = workspaceId, UserId = userId };
             _context.Categories.Add(category);
             await _context.SaveChangesAsync();
         }
@@ -417,7 +449,7 @@ public class IntegrationService : IIntegrationService
         var card = await _context.Cards
             .Include(c => c.ListItems)
                 .ThenInclude(li => li.ScheduledInstances)
-            .FirstOrDefaultAsync(c => c.UserId == userId && c.IntegrationSource == "MicrosoftTodo" && 
+            .FirstOrDefaultAsync(c => c.WorkspaceId == workspaceId && c.IntegrationSource == "MicrosoftTodo" && 
                 (c.IntegrationExternalId == defaultList.Id || c.IntegrationExternalId == "ms-todo-default"));
 
         if (card == null)
@@ -431,6 +463,7 @@ public class IntegrationService : IIntegrationService
                 Description = "Tasks synced from Microsoft TODO",
                 CategoryId = category.Id,
                 UserId = userId,
+                WorkspaceId = workspaceId,
                 IsChecklist = true,
                 IntegrationSource = "MicrosoftTodo",
                 IntegrationExternalId = defaultList.Id,
@@ -531,6 +564,7 @@ public class IntegrationService : IIntegrationService
             .ToList(),
         CategoryId = c.CategoryId,
         UserId = c.UserId,
+        WorkspaceId = c.WorkspaceId ?? 0,
         IntegrationSource = c.IntegrationSource,
         IntegrationExternalId = c.IntegrationExternalId,
         WhiteboardX = c.WhiteboardX,
@@ -557,6 +591,7 @@ public class IntegrationService : IIntegrationService
             Date = inst.Date,
             IsCompleted = inst.IsCompleted,
             UserId = inst.UserId,
+            WorkspaceId = inst.WorkspaceId ?? 0,
             ListItemId = inst.ListItemId,
             CategoryId = inst.CategoryId,
             Title = inst.Title,

@@ -8,6 +8,7 @@ public class ScheduledInstanceDto
     
     // Direct User association
     public int UserId { get; set; }
+    public int WorkspaceId { get; set; }
     
     // Nullable link to List Item
     public int? ListItemId { get; set; }

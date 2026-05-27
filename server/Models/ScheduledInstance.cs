@@ -10,6 +10,10 @@ public class ScheduledInstance
     public int UserId { get; set; }
     public User? User { get; set; }
     
+    // Workspace association (optional for migration)
+    public int? WorkspaceId { get; set; }
+    public Workspace? Workspace { get; set; }
+    
     // Nullable link to List Item (optional for standalone calendar items)
     public int? ListItemId { get; set; }
     public ListItem? ListItem { get; set; }

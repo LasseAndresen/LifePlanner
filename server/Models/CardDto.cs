@@ -13,6 +13,7 @@ public class CardDto
     public int CategoryId { get; set; }
     public CategoryDto? Category { get; set; }
     public int UserId { get; set; }
+    public int WorkspaceId { get; set; }
     public string? IntegrationSource { get; set; }
     public string? IntegrationExternalId { get; set; }
     public double? WhiteboardX { get; set; }

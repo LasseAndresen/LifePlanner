@@ -5,6 +5,7 @@ import { Card, ListItem, ScheduledInstance } from '../models/planner.models';
 import { environment } from '../../../environments/environment';
 import { NotificationService } from './notification.service';
 import { UserService } from './user.service';
+import { WorkspaceService } from './workspace.service';
 
 @Injectable({
   providedIn: 'root'
@@ -13,6 +14,7 @@ export class CardService {
   private readonly http = inject(HttpClient);
   private readonly notifications = inject(NotificationService);
   private readonly userService = inject(UserService);
+  private readonly workspaceService = inject(WorkspaceService);
   private readonly cardsSignal = signal<Card[]>([]);
   private readonly scheduledInstancesSignal = signal<ScheduledInstance[]>([]);
 
@@ -50,9 +52,9 @@ export class CardService {
     return result;
   });
 
-  loadScheduledInstances(userId: number): void {
+  loadScheduledInstances(workspaceId: number): void {
     this.http
-      .get<ScheduledInstance[]>(`${environment.apiBaseUrl}/api/users/${userId}/scheduled-instances`)
+      .get<ScheduledInstance[]>(`${environment.apiBaseUrl}/api/workspaces/${workspaceId}/scheduled-instances`)
       .pipe(
         catchError(err => {
           this.notifications.error('Failed to load calendar events.');
@@ -62,10 +64,10 @@ export class CardService {
       .subscribe(instances => this.scheduledInstancesSignal.set(instances));
   }
 
-  loadCards(userId: number): void {
-    this.loadScheduledInstances(userId);
+  loadCards(workspaceId: number): void {
+    this.loadScheduledInstances(workspaceId);
     this.http
-      .get<Card[]>(`${environment.apiBaseUrl}/api/users/${userId}/cards`)
+      .get<Card[]>(`${environment.apiBaseUrl}/api/workspaces/${workspaceId}/cards`)
       .pipe(
         catchError(err => {
           this.notifications.error('Failed to load cards. Please try again.');
@@ -254,9 +256,13 @@ export class CardService {
 
   scheduleItemInstance(cardId: number, itemId: number, dateIso: string): Observable<ScheduledInstance> {
     const userId = this.userService.currentUser()?.id;
+    const workspace = this.workspaceService.activeWorkspace();
+    const workspaceId = workspace ? workspace.id : null;
     if (!userId) throw new Error('User not logged in');
+    if (!workspaceId) throw new Error('No active workspace selected');
     return this.createScheduledInstance({
       userId,
+      workspaceId,
       listItemId: itemId,
       date: dateIso,
       isCompleted: false,

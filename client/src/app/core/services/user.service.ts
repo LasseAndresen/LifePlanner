@@ -22,4 +22,8 @@ export class UserService {
       .post<User>(`${environment.apiBaseUrl}/api/auth/me`, { idToken, accessToken })
       .pipe(tap(user => this.currentUser.set(user)));
   }
+
+  deleteUser(userId: number): Observable<void> {
+    return this.http.delete<void>(`${environment.apiBaseUrl}/api/users/${userId}`);
+  }
 }

@@ -10,10 +10,10 @@ public class CategoryRepository : Repository<Category>, ICategoryRepository
     {
     }
 
-    public async Task<IEnumerable<Category>> GetCategoriesByUserIdAsync(int userId)
+    public async Task<IEnumerable<Category>> GetCategoriesByWorkspaceIdAsync(int workspaceId)
     {
         return await _dbSet
-            .Where(c => c.UserId == userId)
+            .Where(c => c.WorkspaceId == workspaceId)
             .ToListAsync();
     }
 }

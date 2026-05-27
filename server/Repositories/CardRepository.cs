@@ -10,13 +10,13 @@ public class CardRepository : Repository<Card>, ICardRepository
     {
     }
 
-    public async Task<IEnumerable<Card>> GetCardsByUserIdAsync(int userId)
+    public async Task<IEnumerable<Card>> GetCardsByWorkspaceIdAsync(int workspaceId)
     {
         return await _dbSet
             .Include(c => c.Category)
             .Include(c => c.ListItems)
                 .ThenInclude(i => i.ScheduledInstances)
-            .Where(c => c.UserId == userId)
+            .Where(c => c.WorkspaceId == workspaceId)
             .OrderBy(c => c.Order)
             .ToListAsync();
     }
@@ -32,9 +32,9 @@ public class CardRepository : Repository<Card>, ICardRepository
 
     public override async Task AddAsync(Card card)
     {
-        // Find the current max order for this user's cards
+        // Find the current max order for this workspace's cards
         var maxOrder = await _dbSet
-            .Where(c => c.UserId == card.UserId)
+            .Where(c => c.WorkspaceId == card.WorkspaceId)
             .Select(c => (int?)c.Order)
             .MaxAsync();
 

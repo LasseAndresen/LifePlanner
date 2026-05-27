@@ -14,21 +14,21 @@ public static class CardEndpoints
     {
         var group = app.MapGroup("/api/cards").WithTags("Cards");
 
-        // Get all cards for a specific user
-        app.MapGet("/api/users/{userId}/cards", async (int userId, ICardRepository repo) =>
+        // Get all cards for a specific workspace
+        app.MapGet("/api/workspaces/{workspaceId:int}/cards", async (int workspaceId, ICardRepository repo) =>
         {
-            var cards = await repo.GetCardsByUserIdAsync(userId);
+            var cards = await repo.GetCardsByWorkspaceIdAsync(workspaceId);
             var result = cards.Select(ToDto);
             return Results.Ok(result);
         }).WithTags("Cards");
 
         group.MapPost("/", async (Card card, ICardRepository repo) =>
         {
-            if (string.IsNullOrWhiteSpace(card.Title) || card.UserId <= 0 || card.CategoryId <= 0)
+            if (string.IsNullOrWhiteSpace(card.Title) || card.WorkspaceId <= 0 || card.CategoryId <= 0)
             {
                 return Results.ValidationProblem(new Dictionary<string, string[]>
                 {
-                    { "Card", new[] { "Title, UserId, and CategoryId are required." } }
+                    { "Card", new[] { "Title, WorkspaceId, and CategoryId are required." } }
                 });
             }
 
@@ -477,15 +477,15 @@ public static class CardEndpoints
 
         // --- Flat Scheduled Instance endpoints ---
 
-        // GET /api/users/{userId}/scheduled-instances
-        app.MapGet("/api/users/{userId}/scheduled-instances", async (int userId, LifePlannerDbContext db) =>
+        // GET /api/workspaces/{workspaceId}/scheduled-instances
+        app.MapGet("/api/workspaces/{workspaceId:int}/scheduled-instances", async (int workspaceId, LifePlannerDbContext db) =>
         {
             var instances = await db.ScheduledInstances
                 .Include(si => si.Category)
                 .Include(si => si.ListItem)
                     .ThenInclude(li => li!.Card)
                         .ThenInclude(c => c!.Category)
-                .Where(si => si.UserId == userId)
+                .Where(si => si.WorkspaceId == workspaceId)
                 .ToListAsync();
             return Results.Ok(instances.Select(ToInstanceDto));
         }).WithTags("ScheduledInstances");
@@ -495,9 +495,9 @@ public static class CardEndpoints
         // POST /api/scheduled-instances
         instanceGroup.MapPost("/", async (ScheduledInstance instance, LifePlannerDbContext db) =>
         {
-            if (instance.UserId <= 0)
+            if (instance.WorkspaceId <= 0 || instance.UserId <= 0)
             {
-                return Results.BadRequest("UserId is required.");
+                return Results.BadRequest("WorkspaceId and UserId are required.");
             }
 
             if (instance.ListItemId.HasValue)
@@ -692,6 +692,7 @@ public static class CardEndpoints
             .ToList(),
         CategoryId = c.CategoryId,
         UserId = c.UserId,
+        WorkspaceId = c.WorkspaceId ?? 0,
         IntegrationSource = c.IntegrationSource,
         IntegrationExternalId = c.IntegrationExternalId,
         WhiteboardX = c.WhiteboardX,
@@ -723,6 +724,7 @@ public static class CardEndpoints
         Date = inst.Date,
         IsCompleted = inst.IsCompleted,
         UserId = inst.UserId,
+        WorkspaceId = inst.WorkspaceId ?? 0,
         ListItemId = inst.ListItemId,
         CategoryId = inst.CategoryId,
         Title = inst.ListItem?.Text ?? inst.Title,

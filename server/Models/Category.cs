@@ -7,6 +7,9 @@ public class Category
     public string Color { get; set; } = "#FFFFFF";
     
     // Foreign Key
+    public int? WorkspaceId { get; set; }
+    public Workspace? Workspace { get; set; }
+
     public int UserId { get; set; }
     public User? User { get; set; }
     

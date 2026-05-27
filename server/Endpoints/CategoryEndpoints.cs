@@ -11,10 +11,10 @@ public static class CategoryEndpoints
     {
         var group = app.MapGroup("/api/categories").WithTags("Categories");
 
-        // We also want an endpoint to get all categories for a user
-        app.MapGet("/api/users/{userId}/categories", async (int userId, ICategoryRepository repo) =>
+        // We also want an endpoint to get all categories for a workspace
+        app.MapGet("/api/workspaces/{workspaceId:int}/categories", async (int workspaceId, ICategoryRepository repo) =>
         {
-            var categories = await repo.GetCategoriesByUserIdAsync(userId);
+            var categories = await repo.GetCategoriesByWorkspaceIdAsync(workspaceId);
             var result = categories.Select(c => new CategoryDto
             {
                 Id = c.Id,
@@ -26,11 +26,11 @@ public static class CategoryEndpoints
 
         group.MapPost("/", async (Category category, ICategoryRepository repo) =>
         {
-            if (string.IsNullOrWhiteSpace(category.Name) || category.UserId <= 0)
+            if (string.IsNullOrWhiteSpace(category.Name) || category.WorkspaceId <= 0)
             {
                 return Results.ValidationProblem(new Dictionary<string, string[]>
                 {
-                    { "Category", new[] { "Name and a valid UserId are required." } }
+                    { "Category", new[] { "Name and a valid WorkspaceId are required." } }
                 });
             }
 

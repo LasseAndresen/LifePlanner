@@ -5,6 +5,20 @@ export interface User {
   isAdmin?: boolean;
 }
 
+export interface WorkspaceMember {
+  id: number;
+  name: string;
+  email: string;
+  role: string;
+}
+
+export interface Workspace {
+  id: number;
+  name: string;
+  role: string;
+  members: WorkspaceMember[];
+}
+
 export interface Feedback {
   id: number;
   userId?: number;
@@ -33,6 +47,7 @@ export interface Category {
   name: string;
   color: string;
   userId: number;
+  workspaceId?: number;
 }
 
 export interface ScheduledInstance {
@@ -40,6 +55,7 @@ export interface ScheduledInstance {
   date: string;
   isCompleted: boolean;
   userId: number;
+  workspaceId?: number;
   listItemId?: number;
   categoryId?: number;
   category?: Category;
@@ -74,6 +90,7 @@ export interface Card {
   listItems: ListItem[];
   categoryId: number;
   userId: number;
+  workspaceId?: number;
   integrationSource?: string;
   integrationExternalId?: string;
   category?: Category;   // Populated when the backend includes the navigation property

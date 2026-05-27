@@ -13,9 +13,9 @@ export class CategoryService {
 
   readonly categories = this.categoriesSignal.asReadonly();
 
-  loadCategories(userId: number): void {
+  loadCategories(workspaceId: number): void {
     this.http
-      .get<Category[]>(`${environment.apiBaseUrl}/api/users/${userId}/categories`)
+      .get<Category[]>(`${environment.apiBaseUrl}/api/workspaces/${workspaceId}/categories`)
       .subscribe(categories => this.categoriesSignal.set(categories));
   }
 

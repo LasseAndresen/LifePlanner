@@ -51,5 +51,6 @@ app.MapCardEndpoints();
 app.MapCalendarEndpoints();
 app.MapIntegrationEndpoints();
 app.MapFeedbackEndpoints();
+app.MapWorkspaceEndpoints();
 
 app.Run();

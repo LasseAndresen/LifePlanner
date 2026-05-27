@@ -1,4 +1,5 @@
 import { Injectable, inject, signal } from '@angular/core';
+import { Router } from '@angular/router';
 import { OAuthService } from 'angular-oauth2-oidc';
 import { authConfig } from './auth.config';
 import { UserService } from '../services/user.service';
@@ -9,6 +10,7 @@ import { UserService } from '../services/user.service';
 export class AuthService {
   private readonly oauthService = inject(OAuthService);
   private readonly userService = inject(UserService);
+  private readonly router = inject(Router);
 
   public readonly isLoggedIn = signal(false);
   public readonly userProfile = signal<any>(null);
@@ -54,6 +56,7 @@ export class AuthService {
     this.isLoggedIn.set(false);
     this.userProfile.set(null);
     this.userService.currentUser.set(null);
+    this.router.navigate(['/login']);
   }
 
   public get token() {

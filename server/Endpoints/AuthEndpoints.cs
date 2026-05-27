@@ -3,6 +3,7 @@ using System.Linq;
 using Google.Apis.Auth;
 using LifePlanner.Api.Models;
 using LifePlanner.Api.Repositories;
+using LifePlanner.Api.Data;
 
 namespace LifePlanner.Api.Endpoints;
 
@@ -13,7 +14,7 @@ public static class AuthEndpoints
         // Called by the frontend immediately after a successful Google login.
         // Validates the Google ID token, then creates or retrieves the corresponding
         // user record from the database.
-        app.MapPost("/api/auth/me", async (AuthRequest request, IUserRepository userRepo, ICategoryRepository categoryRepo, IConfiguration config) =>
+        app.MapPost("/api/auth/me", async (AuthRequest request, IUserRepository userRepo, ICategoryRepository categoryRepo, IConfiguration config, LifePlannerDbContext db) =>
         {
             GoogleJsonWebSignature.Payload payload;
             try
@@ -44,14 +45,29 @@ public static class AuthEndpoints
                 };
                 await userRepo.AddAsync(user);
 
-                // Seed default categories so the card form is never empty on first login
-                await categoryRepo.AddRangeAsync(new[]
+                // Create a default workspace for this user
+                var workspace = new Workspace { Name = "Personal Workspace" };
+                db.Workspaces.Add(workspace);
+                await db.SaveChangesAsync();
+
+                var workspaceUser = new WorkspaceUser
                 {
-                    new Category { Name = "Ideas",    Color = "#3b82f6", UserId = user.Id },
-                    new Category { Name = "Chores",   Color = "#10b981", UserId = user.Id },
-                    new Category { Name = "Events",   Color = "#f59e0b", UserId = user.Id },
-                    new Category { Name = "Personal", Color = "#ec4899", UserId = user.Id }
+                    WorkspaceId = workspace.Id,
+                    UserId = user.Id,
+                    Role = "Owner"
+                };
+                db.WorkspaceUsers.Add(workspaceUser);
+
+                // Seed default categories inside this workspace
+                db.Categories.AddRange(new[]
+                {
+                    new Category { Name = "Ideas",    Color = "#3b82f6", WorkspaceId = workspace.Id, UserId = user.Id },
+                    new Category { Name = "Chores",   Color = "#10b981", WorkspaceId = workspace.Id, UserId = user.Id },
+                    new Category { Name = "Events",   Color = "#f59e0b", WorkspaceId = workspace.Id, UserId = user.Id },
+                    new Category { Name = "Personal", Color = "#ec4899", WorkspaceId = workspace.Id, UserId = user.Id }
                 });
+
+                await db.SaveChangesAsync();
             }
             else
             {
@@ -74,7 +90,13 @@ public static class AuthEndpoints
                 await userRepo.UpdateAsync(user);
             }
 
-            return Results.Ok(user);
+            return Results.Ok(new
+            {
+                user.Id,
+                user.Name,
+                user.Email,
+                user.IsAdmin
+            });
         }).WithTags("Auth");
     }
 }
