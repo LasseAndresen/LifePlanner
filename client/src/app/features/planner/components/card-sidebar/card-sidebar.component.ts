@@ -6,6 +6,7 @@ import { StickyNoteComponent } from '../sticky-note/sticky-note.component';
 import { DragDropModule, CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-drop';
 import { CardService } from '../../../../core/services/card.service';
 import { UserService } from '../../../../core/services/user.service';
+import { WorkspaceService } from '../../../../core/services/workspace.service';
 
 @Component({
   selector: 'app-card-sidebar',
@@ -477,6 +478,7 @@ export class CardSidebarComponent {
   private readonly elementRef = inject(ElementRef);
   private readonly cardService = inject(CardService);
   private readonly userService = inject(UserService);
+  private readonly workspaceService = inject(WorkspaceService);
 
   protected dropdownOpen = false;
   protected selectedCategoryIds = new Set<number>();
@@ -695,6 +697,10 @@ export class CardSidebarComponent {
     const user = this.userService.currentUser();
     if (!user) return;
 
+    const workspace = this.workspaceService.activeWorkspace();
+    const workspaceId = workspace ? workspace.id : null;
+    if (!workspaceId) return;
+
     const defaultCategoryId = this.categories.length > 0 ? this.categories[0].id : 1;
 
     this.cardService.createCard({
@@ -703,6 +709,7 @@ export class CardSidebarComponent {
       isChecklist: false,
       categoryId: defaultCategoryId,
       userId: user.id,
+      workspaceId,
       isStickyNote: true,
       color: '#fef08a',
       whiteboardX: Math.round(x),

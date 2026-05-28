@@ -1,4 +1,4 @@
-import { Component, computed, effect, inject, signal, ChangeDetectorRef } from '@angular/core';
+import { Component, computed, effect, inject, signal, ChangeDetectorRef, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { CardSidebarComponent } from './components/card-sidebar/card-sidebar.component';
 import { CalendarGridComponent } from './components/calendar-grid/calendar-grid.component';
@@ -951,6 +951,14 @@ export class PlannerComponent {
         });
       }
     });
+  }
+
+  @HostListener('document:click', ['$event'])
+  onDocumentClick(event: MouseEvent): void {
+    const target = event.target as HTMLElement;
+    if (!target.closest('.workspace-selector-container')) {
+      this.isWorkspaceDropdownOpen.set(false);
+    }
   }
 
   toggleWorkspaceDropdown(): void {

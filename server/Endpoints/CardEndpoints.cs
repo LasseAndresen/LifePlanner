@@ -24,7 +24,7 @@ public static class CardEndpoints
 
         group.MapPost("/", async (Card card, ICardRepository repo) =>
         {
-            if (string.IsNullOrWhiteSpace(card.Title) || card.WorkspaceId <= 0 || card.CategoryId <= 0)
+            if (string.IsNullOrWhiteSpace(card.Title) || !card.WorkspaceId.HasValue || card.WorkspaceId.Value <= 0 || card.CategoryId <= 0)
             {
                 return Results.ValidationProblem(new Dictionary<string, string[]>
                 {
@@ -495,7 +495,7 @@ public static class CardEndpoints
         // POST /api/scheduled-instances
         instanceGroup.MapPost("/", async (ScheduledInstance instance, LifePlannerDbContext db) =>
         {
-            if (instance.WorkspaceId <= 0 || instance.UserId <= 0)
+            if (!instance.WorkspaceId.HasValue || instance.WorkspaceId.Value <= 0 || instance.UserId <= 0)
             {
                 return Results.BadRequest("WorkspaceId and UserId are required.");
             }
