@@ -268,16 +268,16 @@ public static class WorkspaceEndpoints
         });
 
         // POST /api/workspaces/{workspaceId}/transfer-ownership
-        group.MapPost("/{workspaceId:int}/transfer-ownership", async (int workspaceId, int requesterId, TransferOwnershipRequest request, LifePlannerDbContext db) =>
+        group.MapPost("/{workspaceId:int}/transfer-ownership", async (int workspaceId, TransferOwnershipRequest request, LifePlannerDbContext db) =>
         {
-            if (request.NewOwnerId <= 0 || requesterId <= 0)
+            if (request.NewOwnerId <= 0 || request.RequesterId <= 0)
             {
                 return Results.BadRequest("Invalid request parameters.");
             }
 
             // Verify the requester is currently the Owner of the workspace
             var requesterMembership = await db.WorkspaceUsers
-                .FirstOrDefaultAsync(wu => wu.WorkspaceId == workspaceId && wu.UserId == requesterId);
+                .FirstOrDefaultAsync(wu => wu.WorkspaceId == workspaceId && wu.UserId == request.RequesterId);
 
             if (requesterMembership == null || requesterMembership.Role != "Owner")
             {
@@ -323,4 +323,4 @@ public class WorkspaceMemberDto
 public record CreateWorkspaceRequest(string Name, int UserId);
 public record InviteUserRequest(string Email);
 public record JoinWorkspaceRequest(string Token, int UserId);
-public record TransferOwnershipRequest(int NewOwnerId);
+public record TransferOwnershipRequest(int NewOwnerId, int RequesterId);

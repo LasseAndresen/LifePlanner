@@ -194,7 +194,7 @@ export class WorkspaceService {
 
   transferOwnership(workspaceId: number, newOwnerId: number, currentOwnerId: number): Observable<void> {
     return this.http
-      .post<void>(`${environment.apiBaseUrl}/api/workspaces/${workspaceId}/transfer-ownership?requesterId=${currentOwnerId}`, { newOwnerId })
+      .post<void>(`${environment.apiBaseUrl}/api/workspaces/${workspaceId}/transfer-ownership`, { newOwnerId, requesterId: currentOwnerId })
       .pipe(
         tap(() => {
           this.workspaces.update(list =>
