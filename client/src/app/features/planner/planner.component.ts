@@ -218,6 +218,9 @@ import { AdminDashboardDialogComponent } from './components/admin-dashboard-dial
                       <span class="member-name">{{ member.name || member.email }}</span>
                       <span class="member-role">{{ member.role }}</span>
                     </div>
+                    @if (member.id !== userService.currentUser()?.id) {
+                      <button class="remove-member-btn" (click)="removeWorkspaceMember(member)" title="Remove member">✕</button>
+                    }
                   </li>
                 }
               </ul>
@@ -569,6 +572,23 @@ import { AdminDashboardDialogComponent } from './components/admin-dashboard-dial
       align-items: center;
       justify-content: center;
       border: 1px solid var(--border-glass);
+    }
+    .remove-member-btn {
+      background: none;
+      border: none;
+      color: rgba(255, 255, 255, 0.35);
+      font-size: 0.8rem;
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 4px;
+      transition: all 0.15s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .remove-member-btn:hover {
+      color: #ef4444;
+      background: rgba(239, 68, 68, 0.15);
     }
     .member-info {
       display: flex;
@@ -1014,6 +1034,16 @@ export class PlannerComponent {
     this.workspaceService.inviteUser(wsId, email.trim()).subscribe({
       next: () => this.isWorkspaceSettingsOpen.set(false)
     });
+  }
+
+  removeWorkspaceMember(member: any): void {
+    const workspace = this.workspaceService.activeWorkspace();
+    const currentUserId = this.userService.currentUser()?.id;
+    if (!workspace || !currentUserId) return;
+
+    if (confirm(`Are you sure you want to remove ${member.name || member.email} from the workspace?`)) {
+      this.workspaceService.removeMember(workspace.id, member.id, currentUserId).subscribe();
+    }
   }
 
   getInitials(name: string): string {

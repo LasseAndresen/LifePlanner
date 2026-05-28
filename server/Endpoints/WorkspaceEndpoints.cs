@@ -161,12 +161,25 @@ public static class WorkspaceEndpoints
         });
 
         // DELETE /api/workspaces/{workspaceId}/users/{userId}
-        group.MapDelete("/{workspaceId:int}/users/{userId:int}", async (int workspaceId, int userId, LifePlannerDbContext db) =>
+        group.MapDelete("/{workspaceId:int}/users/{userId:int}", async (int workspaceId, int userId, int? requesterId, LifePlannerDbContext db) =>
         {
             var membership = await db.WorkspaceUsers.FirstOrDefaultAsync(wu => wu.WorkspaceId == workspaceId && wu.UserId == userId);
             if (membership == null)
             {
                 return Results.NotFound("Membership not found.");
+            }
+
+            if (requesterId.HasValue && requesterId.Value != userId)
+            {
+                // The requester is trying to remove someone else.
+                // Verify the requester is an Owner of the workspace.
+                var requesterMembership = await db.WorkspaceUsers
+                    .FirstOrDefaultAsync(wu => wu.WorkspaceId == workspaceId && wu.UserId == requesterId.Value);
+
+                if (requesterMembership == null || requesterMembership.Role != "Owner")
+                {
+                    return Results.BadRequest(new { detail = "Only workspace owners can remove other members." });
+                }
             }
 
             db.WorkspaceUsers.Remove(membership);

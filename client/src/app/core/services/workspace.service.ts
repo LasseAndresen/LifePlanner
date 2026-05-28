@@ -103,7 +103,7 @@ export class WorkspaceService {
 
   leaveWorkspace(workspaceId: number, userId: number): Observable<void> {
     return this.http
-      .delete<void>(`${environment.apiBaseUrl}/api/workspaces/${workspaceId}/users/${userId}`)
+      .delete<void>(`${environment.apiBaseUrl}/api/workspaces/${workspaceId}/users/${userId}?requesterId=${userId}`)
       .pipe(
         tap(() => {
           this.workspaces.update(list => list.filter(w => w.id !== workspaceId));
@@ -118,6 +118,36 @@ export class WorkspaceService {
         }),
         catchError(err => {
           this.notifications.error('Failed to leave workspace.');
+          return throwError(() => err);
+        })
+      );
+  }
+
+  removeMember(workspaceId: number, userId: number, requesterId: number): Observable<void> {
+    return this.http
+      .delete<void>(`${environment.apiBaseUrl}/api/workspaces/${workspaceId}/users/${userId}?requesterId=${requesterId}`)
+      .pipe(
+        tap(() => {
+          this.workspaces.update(list =>
+            list.map(w => {
+              if (w.id === workspaceId) {
+                return { ...w, members: w.members ? w.members.filter(m => m.id !== userId) : [] };
+              }
+              return w;
+            })
+          );
+          const currentActive = this.activeWorkspace();
+          if (currentActive && currentActive.id === workspaceId) {
+            this.activeWorkspace.set({
+              ...currentActive,
+              members: currentActive.members ? currentActive.members.filter(m => m.id !== userId) : []
+            });
+          }
+          this.notifications.success('Member removed from workspace.');
+        }),
+        catchError(err => {
+          const msg = err.error?.detail || 'Failed to remove member.';
+          this.notifications.error(msg);
           return throwError(() => err);
         })
       );
