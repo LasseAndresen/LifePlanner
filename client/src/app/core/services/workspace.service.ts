@@ -191,4 +191,50 @@ export class WorkspaceService {
         })
       );
   }
+
+  transferOwnership(workspaceId: number, newOwnerId: number, currentOwnerId: number): Observable<void> {
+    return this.http
+      .post<void>(`${environment.apiBaseUrl}/api/workspaces/${workspaceId}/transfer-ownership?requesterId=${currentOwnerId}`, { newOwnerId })
+      .pipe(
+        tap(() => {
+          this.workspaces.update(list =>
+            list.map(w => {
+              if (w.id === workspaceId) {
+                const members = w.members ? w.members.map(m => {
+                  if (m.id === currentOwnerId) {
+                    return { ...m, role: 'Member' };
+                  }
+                  if (m.id === newOwnerId) {
+                    return { ...m, role: 'Owner' };
+                  }
+                  return m;
+                }) : [];
+                return { ...w, role: 'Member', members };
+              }
+              return w;
+            })
+          );
+          
+          const currentActive = this.activeWorkspace();
+          if (currentActive && currentActive.id === workspaceId) {
+            const members = currentActive.members ? currentActive.members.map(m => {
+              if (m.id === currentOwnerId) {
+                return { ...m, role: 'Member' };
+              }
+              if (m.id === newOwnerId) {
+                return { ...m, role: 'Owner' };
+              }
+              return m;
+            }) : [];
+            this.activeWorkspace.set({ ...currentActive, role: 'Member', members });
+          }
+          this.notifications.success('Ownership transferred successfully.');
+        }),
+        catchError(err => {
+          const msg = err.error?.detail || 'Failed to transfer ownership.';
+          this.notifications.error(msg);
+          return throwError(() => err);
+        })
+      );
+  }
 }

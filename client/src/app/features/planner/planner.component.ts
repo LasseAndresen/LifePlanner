@@ -219,7 +219,10 @@ import { AdminDashboardDialogComponent } from './components/admin-dashboard-dial
                       <span class="member-role">{{ member.role }}</span>
                     </div>
                     @if (member.id !== userService.currentUser()?.id) {
-                      <button class="remove-member-btn" (click)="removeWorkspaceMember(member)" title="Remove member">✕</button>
+                      <div class="member-actions" style="display: flex; gap: 0.25rem;">
+                        <button class="action-member-btn transfer-btn" (click)="transferWorkspaceOwnership(member)" title="Transfer ownership">👑</button>
+                        <button class="action-member-btn remove-btn" (click)="removeWorkspaceMember(member)" title="Remove member">✕</button>
+                      </div>
                     }
                   </li>
                 }
@@ -573,7 +576,7 @@ import { AdminDashboardDialogComponent } from './components/admin-dashboard-dial
       justify-content: center;
       border: 1px solid var(--border-glass);
     }
-    .remove-member-btn {
+    .action-member-btn {
       background: none;
       border: none;
       color: rgba(255, 255, 255, 0.35);
@@ -586,9 +589,17 @@ import { AdminDashboardDialogComponent } from './components/admin-dashboard-dial
       align-items: center;
       justify-content: center;
     }
-    .remove-member-btn:hover {
+    .action-member-btn:hover {
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text-primary);
+    }
+    .action-member-btn.remove-btn:hover {
       color: #ef4444;
       background: rgba(239, 68, 68, 0.15);
+    }
+    .action-member-btn.transfer-btn:hover {
+      color: #f59e0b;
+      background: rgba(245, 158, 11, 0.15);
     }
     .member-info {
       display: flex;
@@ -1043,6 +1054,21 @@ export class PlannerComponent {
 
     if (confirm(`Are you sure you want to remove ${member.name || member.email} from the workspace?`)) {
       this.workspaceService.removeMember(workspace.id, member.id, currentUserId).subscribe();
+    }
+  }
+
+  transferWorkspaceOwnership(member: any): void {
+    const workspace = this.workspaceService.activeWorkspace();
+    const currentUserId = this.userService.currentUser()?.id;
+    if (!workspace || !currentUserId) return;
+
+    const msg = `Are you sure you want to transfer ownership of "${workspace.name}" to ${member.name || member.email}? You will lose Owner permissions and this settings panel will close.`;
+    if (confirm(msg)) {
+      this.workspaceService.transferOwnership(workspace.id, member.id, currentUserId).subscribe({
+        next: () => {
+          this.isWorkspaceSettingsOpen.set(false);
+        }
+      });
     }
   }
 
