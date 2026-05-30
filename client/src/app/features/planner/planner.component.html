@@ -1,0 +1,263 @@
+<div class="app-layout">
+  <!-- Teams-like Sidebar -->
+  <nav class="teams-sidebar">
+    <div class="sidebar-brand">
+      <span class="logo-spark">✦</span>
+    </div>
+
+    <!-- Workspace Selector Badge -->
+    <div class="workspace-selector-container">
+      <button class="workspace-badge" (click)="toggleWorkspaceDropdown()" [title]="activeWorkspaceName()">
+        {{ activeWorkspaceInitials() }}
+      </button>
+      
+      <!-- Workspace Dropdown -->
+      @if (isWorkspaceDropdownOpen()) {
+        <div class="workspace-dropdown glass-panel" (click)="$event.stopPropagation()">
+          <div class="dropdown-header">
+            <h3>Workspaces</h3>
+            <p>Switch or manage workspaces</p>
+          </div>
+          
+          <ul class="workspace-list">
+            @for (ws of workspaceService.workspaces(); track ws.id) {
+              <li 
+                [class.active]="ws.id === workspaceService.activeWorkspace()?.id"
+                (click)="selectWorkspace(ws)">
+                <span class="ws-avatar">{{ getInitials(ws.name) }}</span>
+                <span class="ws-name">{{ ws.name }}</span>
+                @if (ws.id === workspaceService.activeWorkspace()?.id) {
+                  <span class="ws-check">✓</span>
+                }
+              </li>
+            }
+          </ul>
+          
+          <div class="dropdown-footer">
+            <button class="dropdown-action-btn" (click)="openCreateWorkspace()">
+              <span class="btn-icon">+</span> Create Workspace
+            </button>
+            @if (workspaceService.activeWorkspace()?.role === 'Owner') {
+              <button class="dropdown-action-btn" (click)="openWorkspaceSettings()">
+                <span class="btn-icon">⚙</span> Settings
+              </button>
+            }
+          </div>
+        </div>
+      }
+    </div>
+    
+    <div class="sidebar-nav">
+      <button 
+        [class.active]="viewMode() === 'calendar'" 
+        (click)="setViewMode('calendar')" 
+        title="Calendar View"
+        class="nav-item"
+        id="nav-calendar-btn">
+        <span class="nav-icon">📅</span>
+        <span class="nav-label">Calendar</span>
+      </button>
+      
+      <button 
+        [class.active]="viewMode() === 'whiteboard'" 
+        (click)="setViewMode('whiteboard')" 
+        title="Whiteboard View"
+        class="nav-item"
+        id="nav-whiteboard-btn">
+        <span class="nav-icon">📋</span>
+        <span class="nav-label">Whiteboard</span>
+      </button>
+    </div>
+
+    <div class="sidebar-footer">
+      @if (userService.currentUser()?.isAdmin || false) {
+        <button class="nav-item action-btn" (click)="isAdminDashboardOpen.set(true)" title="Admin Console" id="nav-admin-btn">
+          <span class="nav-icon">👑</span>
+          <span class="nav-label">Admin</span>
+        </button>
+      }
+      <button class="nav-item action-btn" (click)="isFeedbackOpen.set(true)" title="Send Feedback" id="nav-feedback-btn">
+        <span class="nav-icon">💬</span>
+        <span class="nav-label">Feedback</span>
+      </button>
+      <button class="nav-item action-btn" (click)="openIntegrations()" title="Manage Integrations" id="nav-integrations-btn">
+        <span class="nav-icon">🔌</span>
+        <span class="nav-label">Integrations</span>
+      </button>
+      <button class="nav-item action-btn delete-account-btn" (click)="deleteAccount()" title="Delete Account & Data" id="nav-delete-account-btn">
+        <span class="nav-icon">⚠️</span>
+        <span class="nav-label">Delete Data</span>
+      </button>
+      <button class="nav-item action-btn logout-btn" (click)="logout()" title="Logout" id="nav-logout-btn">
+        <span class="nav-icon">🚪</span>
+        <span class="nav-label">Logout</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Main Planner Content Area -->
+  <div class="planner-layout">
+    <!-- Card Sidebar Column (which expands to Whiteboard Canvas) -->
+    <div class="sidebar-wrapper" [class.expanded]="viewMode() === 'whiteboard'">
+      <app-card-sidebar
+          [viewMode]="viewMode()"
+          [cards]="cardService.unscheduledCards()"
+          [categories]="categoryService.categories()"
+          [connectedTo]="allDropLists()"
+          (addCardClicked)="startCreateCard()"
+          (editCardClicked)="onEditCard($event)"
+          (itemDropped)="onItemDropped($event)"
+          (cardsReordered)="onCardsReordered($event)"
+          (cardDragEnded)="onCardDragEnded($event.event, $event.card)">
+      </app-card-sidebar>
+    </div>
+
+    <!-- Calendar Grid Column (which collapses to the right) -->
+    <div class="calendar-wrapper" [class.collapsed]="viewMode() === 'whiteboard'">
+      <app-calendar-grid
+        [connectedTo]="allDropLists()"
+        (itemDropped)="onItemDropped($event)"
+        (addClicked)="onAddCalendarItem($event)"
+        (editClicked)="onEditCalendarItem($event)"
+        (instanceToggled)="onInstanceToggled($event)"
+        (instanceUnscheduled)="onInstanceUnscheduled($event)"
+        (instanceConfirmed)="onInstanceConfirmed($event)"
+        (instanceReverted)="onInstanceReverted($event)">
+      </app-calendar-grid>
+    </div>
+  </div>
+</div>
+
+<!-- Create Workspace Modal -->
+@if (isCreateWorkspaceOpen()) {
+  <div class="modal-backdrop" (click)="isCreateWorkspaceOpen.set(false)">
+    <div class="modal-container glass-panel" (click)="$event.stopPropagation()">
+      <header class="modal-header">
+        <div class="header-title-area">
+          <span class="icon-sparkle">✦</span>
+          <h2>Create New Workspace</h2>
+          <p class="subtitle">Organize cards and schedules in a new space</p>
+        </div>
+        <button class="close-btn" (click)="isCreateWorkspaceOpen.set(false)">✕</button>
+      </header>
+      <div class="modal-body">
+        <div class="form-group" style="display: flex; flex-direction: column; gap: 0.5rem; width: 100%;">
+          <label for="ws-name-input" class="form-label" style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary);">Workspace Name</label>
+          <input 
+            id="ws-name-input" 
+            type="text" 
+            #wsNameInput
+            placeholder="e.g. Home chores, Travel planning..." 
+            class="glass-input" />
+        </div>
+        <div class="modal-footer">
+          <button class="cancel-btn" (click)="isCreateWorkspaceOpen.set(false)">Cancel</button>
+          <button class="submit-btn" (click)="submitCreateWorkspace(wsNameInput.value)">Create Workspace</button>
+        </div>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Workspace Settings / Invite Modal -->
+@if (isWorkspaceSettingsOpen()) {
+  <div class="modal-backdrop" (click)="isWorkspaceSettingsOpen.set(false)">
+    <div class="modal-container glass-panel" (click)="$event.stopPropagation()">
+      <header class="modal-header">
+        <div class="header-title-area">
+          <span class="icon-sparkle">⚙</span>
+          <h2>Workspace Settings</h2>
+          <p class="subtitle">Manage members for {{ activeWorkspaceName() }}</p>
+        </div>
+        <button class="close-btn" (click)="isWorkspaceSettingsOpen.set(false)">✕</button>
+      </header>
+      <div class="modal-body">
+        <div class="members-section">
+          <h3>Active Members</h3>
+          <ul class="members-list">
+            @for (member of workspaceService.activeWorkspace()?.members; track member.id) {
+              <li class="member-item">
+                <span class="member-avatar">{{ getInitials(member.name || member.email) }}</span>
+                <div class="member-info">
+                  <span class="member-name">{{ member.name || member.email }}</span>
+                  <span class="member-role">{{ member.role }}</span>
+                </div>
+                @if (member.id !== userService.currentUser()?.id) {
+                  <div class="member-actions" style="display: flex; gap: 0.25rem;">
+                    <button class="action-member-btn transfer-btn" (click)="transferWorkspaceOwnership(member)" title="Transfer ownership">👑</button>
+                    <button class="action-member-btn remove-btn" (click)="removeWorkspaceMember(member)" title="Remove member">✕</button>
+                  </div>
+                }
+              </li>
+            }
+          </ul>
+        </div>
+        
+        <div class="invite-section">
+          <h3>Invite Member</h3>
+          <p class="section-desc">Search and invite an existing user by email.</p>
+          <div class="invite-form-row">
+            <input 
+              type="email" 
+              #inviteEmailInput
+              placeholder="partner@example.com" 
+              class="glass-input" />
+            <button class="invite-btn" (click)="submitInvite(inviteEmailInput.value); inviteEmailInput.value=''">Invite</button>
+          </div>
+        </div>
+
+        <div class="invite-link-section" style="margin-top: 1.25rem; width: 100%; border-top: 1px solid rgba(255, 255, 255, 0.04); padding-top: 1.25rem;">
+          <h3>Invite Link</h3>
+          <p class="section-desc">Generate a shareable link to invite users to this workspace.</p>
+          <div class="invite-link-row" style="display: flex; gap: 0.5rem; width: 100%; align-items: center;">
+            @if (generatedInviteLink()) {
+              <input 
+                type="text" 
+                [value]="generatedInviteLink()" 
+                readonly 
+                class="glass-input" 
+                style="flex: 1; font-size: 0.8rem;" 
+                #linkInput />
+              <button class="invite-btn" (click)="copyInviteLink(linkInput)" style="white-space: nowrap;">Copy Link</button>
+            } @else {
+              <button class="invite-btn" (click)="generateInviteLink()" style="width: 100%;">Generate Link</button>
+            }
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+}
+
+@if (isFormOpen()) {
+  <app-create-card-form
+    [cardToEdit]="editingCard()"
+    (submitted)="onCardFormSubmit($event)"
+    (cancelled)="onCardFormCancel()">
+  </app-create-card-form>
+}
+
+@if (isIntegrationsOpen()) {
+  <app-integrations-dialog
+    (closed)="isIntegrationsOpen.set(false)"
+    (synced)="onIntegrationsSynced()">
+  </app-integrations-dialog>
+}
+
+@if (isCalendarDialogOpen()) {
+  <app-calendar-instance-dialog
+    [instance]="activeInstance()"
+    [defaultDate]="defaultDate()"
+    (save)="onSaveCalendarItem($event)"
+    (delete)="onDeleteCalendarItem($event)"
+    (cancel)="isCalendarDialogOpen.set(false)">
+  </app-calendar-instance-dialog>
+}
+
+@if (isFeedbackOpen()) {
+  <app-feedback-dialog (closed)="isFeedbackOpen.set(false)"></app-feedback-dialog>
+}
+
+@if (isAdminDashboardOpen()) {
+  <app-admin-dashboard-dialog (closed)="isAdminDashboardOpen.set(false)"></app-admin-dashboard-dialog>
+}

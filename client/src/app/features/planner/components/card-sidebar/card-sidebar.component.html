@@ -1,0 +1,135 @@
+<div class="sidebar-container glass-panel" [class.whiteboard-mode]="viewMode === 'whiteboard'">
+
+  @if (viewMode === 'whiteboard') {
+    <!-- Floating controls for canvas reset & new sticky note -->
+    <div class="whiteboard-controls-overlay" (click)="stopPropagation($event)">
+      <button class="control-btn" (click)="recenterCanvas()" title="Reset Zoom & Pan">⌖ Recenter</button>
+      <button class="control-btn" (click)="spawnStickyNoteAtCenter()" title="Add Sticky Note">+ Note</button>
+      <button class="control-btn" (click)="addCardClicked.emit()" title="Add Topic Card">+ Card</button>
+      <span class="zoom-indicator">Zoom: {{ Math.round(zoomScale() * 100) }}%</span>
+    </div>
+
+    <div 
+      class="whiteboard-viewport" 
+      (mousedown)="onViewportMouseDown($event)"
+      (wheel)="onViewportWheel($event)">
+      
+      <div 
+        class="whiteboard-canvas" 
+        [style.transform]="canvasTransform()"
+        (dblclick)="onCanvasDoubleClick($event)">
+        
+        @for (card of cards; track card.id) {
+          @if (card.isStickyNote) {
+            <app-sticky-note
+              class="sidebar-card-item whiteboard-mode sticky-note-item"
+              [attr.data-card-id]="card.id"
+              [card]="card"
+              viewMode="whiteboard"
+              [style.left.px]="getCardX(card)"
+              [style.top.px]="getCardY(card)"
+              (dragStarted)="onCardDragStart($event, card)"
+              (deleted)="onCardDeleted(card)">
+            </app-sticky-note>
+          } @else {
+            <app-topic-card
+              class="sidebar-card-item whiteboard-mode topic-card-item"
+              [attr.data-card-id]="card.id"
+              [card]="card"
+              [connectedTo]="connectedTo"
+              [style.left.px]="getCardX(card)"
+              [style.top.px]="getCardY(card)"
+              (editClicked)="editCardClicked.emit(card)"
+              (itemDropped)="itemDropped.emit($event)"
+              (dragStarted)="onCardDragStart($event, card)"
+            >
+            </app-topic-card>
+          }
+        }
+      </div>
+    </div>
+
+  } @else {
+    <div class="sidebar-header">
+      <div class="header-text">
+        <h2>Ideas & Tasks</h2>
+        <p class="subtitle">Drag tasks onto your calendar</p>
+      </div>
+      <div class="header-actions">
+        <button class="add-btn" (click)="addCardClicked.emit()" title="New card">
+          <span class="plus">+</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Category Filter Dropdown -->
+    <div class="category-filters">
+      <button 
+        class="filter-chip dropdown-trigger" 
+        [class.active]="selectedCategoryIds.size > 0"
+        (click)="toggleDropdown($event)">
+        📁 Categories
+        @if (selectedCategoryIds.size > 0) {
+          <span class="badge">{{ selectedCategoryIds.size }}</span>
+        } @else {
+          <span class="badge-all">All</span>
+        }
+        <span class="arrow" [class.open]="dropdownOpen">▼</span>
+      </button>
+
+      @if (dropdownOpen) {
+        <div class="dropdown-menu glass-panel">
+          <button class="dropdown-item" (click)="clearFilters($event)">
+            <span class="checkbox" [class.checked]="selectedCategoryIds.size === 0">
+              @if (selectedCategoryIds.size === 0) { ✓ }
+            </span>
+            All Categories
+          </button>
+          <div class="dropdown-divider"></div>
+          @for (cat of categories; track cat.id) {
+            <button class="dropdown-item" (click)="toggleCategory(cat.id, $event)">
+              <span class="checkbox" [class.checked]="selectedCategoryIds.has(cat.id)">
+                @if (selectedCategoryIds.has(cat.id)) { ✓ }
+              </span>
+              <span class="color-dot" [style.background-color]="cat.color"></span>
+              {{ cat.name }}
+            </button>
+          }
+        </div>
+      }
+    </div>
+
+    <div class="card-list" cdkDropList [cdkDropListData]="filteredCards" (cdkDropListDropped)="onDrop($event)">
+      @for (card of filteredCards; track card.id) {
+        @if (card.isStickyNote) {
+          <app-sticky-note
+            class="sidebar-card-item list-sticky-note"
+            [attr.data-card-id]="card.id"
+            cdkDrag
+            [card]="card"
+            viewMode="calendar"
+            (deleted)="onCardDeleted(card)">
+          </app-sticky-note>
+        } @else {
+          <app-topic-card
+            class="sidebar-card-item"
+            [attr.data-card-id]="card.id"
+            cdkDrag
+            [card]="card"
+            [connectedTo]="connectedTo"
+            (editClicked)="editCardClicked.emit(card)"
+            (itemDropped)="itemDropped.emit($event)"
+          >
+          </app-topic-card>
+        }
+      } @empty {
+        <div class="empty-state">
+          <p class="empty-icon">✦</p>
+          <p>No cards yet.</p>
+          <p class="empty-hint">Click <strong>+</strong> to add your first card.</p>
+        </div>
+      }
+    </div>
+  }
+
+</div>
