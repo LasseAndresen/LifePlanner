@@ -92,6 +92,12 @@ LifePlanner isn't just a tool; it's an experience. The **Midnight Glass** design
 
 ---
 
+## 🚀 Production Readiness
+
+For details on preparing the application for production deployment, including database migration, secrets handling, security headers, performance optimizations, and CI/CD pipelines, see the [Production Readiness Checklist](file:///C:/Users/Waluda/Personal%20projects/LifePlanner/docs/production-checklist.md).
+
+---
+
 ## 📝 License
 
 Distributed under the MIT License. See `LICENSE` for more information.
