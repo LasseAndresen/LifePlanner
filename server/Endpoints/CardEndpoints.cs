@@ -1,10 +1,10 @@
-using LifePlanner.Api.Data;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Routing;
 using LifePlanner.Api.Models;
-using LifePlanner.Api.Repositories;
 using LifePlanner.Api.Services;
 using System.Collections.Generic;
-using Microsoft.EntityFrameworkCore;
-using System.Linq;
+using System.Threading.Tasks;
 
 namespace LifePlanner.Api.Endpoints;
 
@@ -15,739 +15,149 @@ public static class CardEndpoints
         var group = app.MapGroup("/api/cards").WithTags("Cards");
 
         // Get all cards for a specific workspace
-        app.MapGet("/api/workspaces/{workspaceId:int}/cards", async (int workspaceId, ICardRepository repo) =>
+        app.MapGet("/api/workspaces/{workspaceId:int}/cards", async (int workspaceId, ICardService cardService) =>
         {
-            var cards = await repo.GetCardsByWorkspaceIdAsync(workspaceId);
-            var result = cards.Select(ToDto);
+            var result = await cardService.GetCardsByWorkspaceIdAsync(workspaceId);
             return Results.Ok(result);
         }).WithTags("Cards");
 
-        group.MapPost("/", async (Card card, ICardRepository repo) =>
+        // POST /api/cards
+        group.MapPost("/", async (Card card, ICardService cardService) =>
         {
-            if (string.IsNullOrWhiteSpace(card.Title) || !card.WorkspaceId.HasValue || card.WorkspaceId.Value <= 0 || card.CategoryId <= 0)
+            var result = await cardService.CreateCardAsync(card);
+            if (result == null)
             {
                 return Results.ValidationProblem(new Dictionary<string, string[]>
                 {
                     { "Card", new[] { "Title, WorkspaceId, and CategoryId are required." } }
                 });
             }
-
-            await repo.AddAsync(card);
-
-            var createdEntity = await repo.GetCardWithCategoryByIdAsync(card.Id);
-            if (createdEntity == null) return Results.Problem("Error loading created card.");
-
-            return Results.Created($"/api/cards/{card.Id}", ToDto(createdEntity));
+            return Results.Created($"/api/cards/{result.Id}", result);
         });
 
-        group.MapPut("/{id}", async (int id, Card updatedCard, ICardRepository repo) =>
+        // PUT /api/cards/{id}
+        group.MapPut("/{id:int}", async (int id, Card updatedCard, ICardService cardService) =>
         {
-            if (string.IsNullOrWhiteSpace(updatedCard.Title) || updatedCard.CategoryId <= 0)
+            var result = await cardService.UpdateCardAsync(id, updatedCard);
+            if (result == null)
             {
                 return Results.ValidationProblem(new Dictionary<string, string[]>
                 {
-                    { "Card", new[] { "Title and CategoryId are required." } }
+                    { "Card", new[] { "Title and CategoryId are required, or the Card was not found." } }
                 });
             }
-
-            var card = await repo.GetByIdAsync(id);
-            if (card is null) return Results.NotFound();
-
-            card.Title = updatedCard.Title;
-            card.Description = updatedCard.Description;
-            card.CategoryId = updatedCard.CategoryId;
-            card.ScheduledDate = updatedCard.ScheduledDate;
-            card.IsChecklist = updatedCard.IsChecklist;
-            card.WhiteboardX = updatedCard.WhiteboardX;
-            card.WhiteboardY = updatedCard.WhiteboardY;
-            card.IsStickyNote = updatedCard.IsStickyNote;
-            card.Color = updatedCard.Color;
-
-            await repo.UpdateAsync(card);
-
-            var resultEntity = await repo.GetCardWithCategoryByIdAsync(id);
-            if (resultEntity == null) return Results.NotFound();
-
-            return Results.Ok(ToDto(resultEntity));
+            return Results.Ok(result);
         });
 
-        group.MapDelete("/{id}", async (int id, LifePlannerDbContext db) =>
+        // DELETE /api/cards/{id}
+        group.MapDelete("/{id:int}", async (int id, ICardService cardService) =>
         {
-            var card = await db.Cards
-                .Include(c => c.ListItems)
-                .FirstOrDefaultAsync(c => c.Id == id);
-            if (card is null) return Results.NotFound();
-
-            var listItemIds = card.ListItems.Select(li => li.Id).ToList();
-            if (listItemIds.Any())
-            {
-                var scheduledInstances = await db.ScheduledInstances
-                    .Include(si => si.ListItem)
-                    .Where(si => si.ListItemId.HasValue && listItemIds.Contains(si.ListItemId.Value))
-                    .ToListAsync();
-                foreach (var si in scheduledInstances)
-                {
-                    if (si.ListItem != null)
-                    {
-                        if (string.IsNullOrEmpty(si.Title))
-                        {
-                            si.Title = si.ListItem.Text;
-                        }
-                        if (!si.CategoryId.HasValue)
-                        {
-                            si.CategoryId = card.CategoryId;
-                        }
-                    }
-                    si.ListItemId = null;
-                }
-            }
-
-            db.Cards.Remove(card);
-            await db.SaveChangesAsync();
+            var success = await cardService.DeleteCardAsync(id);
+            if (!success) return Results.NotFound();
             return Results.NoContent();
         });
 
-        // Reorder cards endpoint
-        group.MapPost("/reorder", async (List<ReorderCardsDto> reordered, ICardRepository repo) =>
+        // POST /api/cards/reorder
+        group.MapPost("/reorder", async (List<ReorderCardsDto> reordered, ICardService cardService) =>
         {
-            await repo.ReorderCardsAsync(reordered ?? new List<ReorderCardsDto>());
+            await cardService.ReorderCardsAsync(reordered);
             return Results.Ok();
         }).WithTags("Cards");
 
         // --- List Item endpoints ---
 
-        group.MapPost("/{cardId}/items", async (int cardId, ListItem item, LifePlannerDbContext db, IMicrosoftTodoService todoService, IGoogleTasksService googleTasksService, ILoggerFactory loggerFactory) =>
+        // POST /api/cards/{cardId}/items
+        group.MapPost("/{cardId:int}/items", async (int cardId, ListItem item, ICardService cardService) =>
         {
-            var logger = loggerFactory.CreateLogger("CardEndpoints");
-            var card = await db.Cards.Include(c => c.User).FirstOrDefaultAsync(c => c.Id == cardId);
-            if (card is null) return Results.NotFound();
-
-            item.CardId = cardId;
-
-            if (card.IntegrationSource == "MicrosoftTodo" && 
-                !string.IsNullOrEmpty(card.IntegrationExternalId) && 
-                card.User != null && card.User.MicrosoftTodoConnected)
-            {
-                try
-                {
-                    var accessToken = await todoService.GetOrRefreshTokenAsync(card.User);
-                    var externalId = await todoService.CreateTaskAsync(accessToken, card.IntegrationExternalId, item.Text);
-                    item.IntegrationExternalId = externalId;
-                }
-                catch (System.Exception ex)
-                {
-                    logger.LogError(ex, "Error creating task in Microsoft To-Do for CardId {CardId}", cardId);
-                }
-            }
-            else if (card.IntegrationSource == "GoogleTasks" &&
-                     !string.IsNullOrEmpty(card.IntegrationExternalId) &&
-                     card.User != null && card.User.GoogleTasksConnected)
-            {
-                try
-                {
-                    var googleTask = await googleTasksService.CreateTaskAsync(card.User, card.IntegrationExternalId, item.Text);
-                    item.IntegrationExternalId = googleTask.Id;
-                    item.Position = googleTask.Position;
-                }
-                catch (System.Exception ex)
-                {
-                    logger.LogError(ex, "Error creating task in Google Tasks for CardId {CardId}", cardId);
-                }
-            }
-
-            db.ListItems.Add(item);
-            await db.SaveChangesAsync();
-
-            return Results.Created($"/api/cards/{cardId}/items/{item.Id}", ToItemDto(item));
+            var result = await cardService.AddListItemAsync(cardId, item);
+            if (result == null) return Results.NotFound();
+            return Results.Created($"/api/cards/{cardId}/items/{result.Id}", result);
         }).WithTags("Cards");
 
-        group.MapPut("/{cardId}/items/{itemId}", async (int cardId, int itemId, ListItem updatedItem, LifePlannerDbContext db, IMicrosoftTodoService todoService, IGoogleTasksService googleTasksService, ILoggerFactory loggerFactory) =>
+        // PUT /api/cards/{cardId}/items/{itemId}
+        group.MapPut("/{cardId:int}/items/{itemId:int}", async (int cardId, int itemId, ListItem updatedItem, ICardService cardService) =>
         {
-            var logger = loggerFactory.CreateLogger("CardEndpoints");
-
-            var item = await db.ListItems
-                .Include(i => i.ScheduledInstances)
-                .Include(i => i.Card)
-                    .ThenInclude(c => c!.User)
-                .FirstOrDefaultAsync(i => i.Id == itemId && i.CardId == cardId);
-            if (item is null) return Results.NotFound();
-
-            bool completionChanged = item.IsCompleted != updatedItem.IsCompleted;
-            bool renameChanged = item.Text != updatedItem.Text;
-
-            logger.LogInformation("Item Put Request - ItemId: {ItemId}, CardId: {CardId}, Text: '{OldText}' -> '{NewText}', renameChanged: {RenameChanged}, completionChanged: {CompletionChanged}", 
-                itemId, cardId, item.Text, updatedItem.Text, renameChanged, completionChanged);
-            logger.LogInformation("Integration Details - Item External ID: '{ItemExtId}', Card External ID: '{CardExtId}'", 
-                item.IntegrationExternalId, item.Card?.IntegrationExternalId);
-
-            item.Text = updatedItem.Text;
-            item.IsCompleted = updatedItem.IsCompleted;
-            if (updatedItem.CardId > 0 && updatedItem.CardId != cardId)
-            {
-                item.CardId = updatedItem.CardId;
-            }
-
-            // Sync rename and completion to all linked scheduled instances in the DB
-            if (item.ScheduledInstances != null)
-            {
-                foreach (var inst in item.ScheduledInstances)
-                {
-                    inst.Title = updatedItem.Text;
-                    inst.IsCompleted = updatedItem.IsCompleted;
-                }
-            }
-
-            if ((completionChanged || renameChanged) && item.Card?.IntegrationSource == "MicrosoftTodo" &&
-                !string.IsNullOrEmpty(item.IntegrationExternalId) &&
-                !string.IsNullOrEmpty(item.Card.IntegrationExternalId) &&
-                item.Card.User != null && item.Card.User.MicrosoftTodoConnected)
-            {
-                try
-                {
-                    var accessToken = await todoService.GetOrRefreshTokenAsync(item.Card.User);
-                    await todoService.UpdateTaskAsync(
-                        accessToken, 
-                        item.Card.IntegrationExternalId, 
-                        item.IntegrationExternalId, 
-                        title: renameChanged ? item.Text : null, 
-                        isCompleted: completionChanged ? (bool?)item.IsCompleted : null
-                    );
-                }
-                catch (System.Exception ex)
-                {
-                    logger.LogError(ex, "Error syncing task update with Microsoft To-Do for ItemId {ItemId}", itemId);
-                }
-            }
-            else if ((completionChanged || renameChanged) && item.Card?.IntegrationSource == "GoogleTasks" &&
-                     !string.IsNullOrEmpty(item.IntegrationExternalId) &&
-                     !string.IsNullOrEmpty(item.Card.IntegrationExternalId) &&
-                     item.Card.User != null && item.Card.User.GoogleTasksConnected)
-            {
-                try
-                {
-                    await googleTasksService.UpdateTaskAsync(
-                        item.Card.User,
-                        item.Card.IntegrationExternalId,
-                        item.IntegrationExternalId,
-                        title: renameChanged ? item.Text : null,
-                        isCompleted: completionChanged ? (bool?)item.IsCompleted : null
-                    );
-                }
-                catch (System.Exception ex)
-                {
-                    logger.LogError(ex, "Error syncing task update with Google Tasks for ItemId {ItemId}", itemId);
-                }
-            }
-
-            await db.SaveChangesAsync();
-
-            return Results.Ok(ToItemDto(item));
+            var result = await cardService.UpdateListItemAsync(cardId, itemId, updatedItem);
+            if (result == null) return Results.NotFound();
+            return Results.Ok(result);
         }).WithTags("Cards");
 
-        group.MapDelete("/{cardId}/items/{itemId}", async (int cardId, int itemId, LifePlannerDbContext db, IMicrosoftTodoService todoService, IGoogleTasksService googleTasksService, ILoggerFactory loggerFactory) =>
+        // DELETE /api/cards/{cardId}/items/{itemId}
+        group.MapDelete("/{cardId:int}/items/{itemId:int}", async (int cardId, int itemId, ICardService cardService) =>
         {
-            var logger = loggerFactory.CreateLogger("CardEndpoints");
-            var item = await db.ListItems
-                .Include(i => i.Card)
-                    .ThenInclude(c => c!.User)
-                .FirstOrDefaultAsync(i => i.Id == itemId && i.CardId == cardId);
-            if (item is null) return Results.NotFound();
-
-            if (item.Card?.IntegrationSource == "MicrosoftTodo" && 
-                !string.IsNullOrEmpty(item.IntegrationExternalId) && 
-                !string.IsNullOrEmpty(item.Card.IntegrationExternalId) && 
-                item.Card.User != null && item.Card.User.MicrosoftTodoConnected)
-            {
-                try
-                {
-                    var accessToken = await todoService.GetOrRefreshTokenAsync(item.Card.User);
-                    await todoService.DeleteTaskAsync(accessToken, item.Card.IntegrationExternalId, item.IntegrationExternalId);
-                }
-                catch (System.Exception ex)
-                {
-                    logger.LogError(ex, "Error deleting task from Microsoft To-Do for ItemId {ItemId}", itemId);
-                }
-            }
-            else if (item.Card?.IntegrationSource == "GoogleTasks" && 
-                     !string.IsNullOrEmpty(item.IntegrationExternalId) && 
-                     !string.IsNullOrEmpty(item.Card.IntegrationExternalId) && 
-                     item.Card.User != null && item.Card.User.GoogleTasksConnected)
-            {
-                try
-                {
-                    await googleTasksService.DeleteTaskAsync(item.Card.User, item.Card.IntegrationExternalId, item.IntegrationExternalId);
-                }
-                catch (System.Exception ex)
-                {
-                    logger.LogError(ex, "Error deleting task from Google Tasks for ItemId {ItemId}", itemId);
-                }
-            }
-
-            // Orphan any scheduled instances first instead of deleting them
-            var scheduledInstances = await db.ScheduledInstances
-                .Include(si => si.ListItem)
-                    .ThenInclude(li => li!.Card)
-                .Where(si => si.ListItemId == itemId)
-                .ToListAsync();
-            foreach (var si in scheduledInstances)
-            {
-                if (si.ListItem != null)
-                {
-                    if (string.IsNullOrEmpty(si.Title))
-                    {
-                        si.Title = si.ListItem.Text;
-                    }
-                    if (!si.CategoryId.HasValue && si.ListItem.Card != null)
-                    {
-                        si.CategoryId = si.ListItem.Card.CategoryId;
-                    }
-                }
-                si.ListItemId = null;
-            }
-
-            db.ListItems.Remove(item);
-            await db.SaveChangesAsync();
+            var success = await cardService.DeleteListItemAsync(cardId, itemId);
+            if (!success) return Results.NotFound();
             return Results.NoContent();
         }).WithTags("Cards");
 
-        group.MapPut("/{cardId}/items/reorder", async (int cardId, ReorderItemsRequest request, LifePlannerDbContext db, IGoogleTasksService googleTasksService, ILoggerFactory loggerFactory) =>
+        // PUT /api/cards/{cardId}/items/reorder
+        group.MapPut("/{cardId:int}/items/reorder", async (int cardId, ReorderItemsRequest request, ICardService cardService) =>
         {
-            var logger = loggerFactory.CreateLogger("CardEndpoints");
-            var card = await db.Cards
-                .Include(c => c.ListItems)
-                .Include(c => c.User)
-                .FirstOrDefaultAsync(c => c.Id == cardId);
-
-            if (card == null) return Results.NotFound();
-
-            if (card.IntegrationSource == "GoogleTasks" &&
-                !string.IsNullOrEmpty(card.IntegrationExternalId) &&
-                card.User != null && card.User.GoogleTasksConnected)
-            {
-                var movedItem = card.ListItems.FirstOrDefault(li => li.Id == request.MovedItemId);
-                if (movedItem != null && !string.IsNullOrEmpty(movedItem.IntegrationExternalId))
-                {
-                    int movedIndex = request.ItemIds.IndexOf(request.MovedItemId);
-                    string? previousTaskExtId = null;
-                    if (movedIndex > 0)
-                    {
-                        var prevItemId = request.ItemIds[movedIndex - 1];
-                        var prevItem = card.ListItems.FirstOrDefault(li => li.Id == prevItemId);
-                        previousTaskExtId = prevItem?.IntegrationExternalId;
-                    }
-
-                    try
-                    {
-                        await googleTasksService.MoveTaskAsync(
-                            card.User,
-                            card.IntegrationExternalId,
-                            movedItem.IntegrationExternalId,
-                            previousTaskExtId
-                        );
-
-                        var freshTasks = await googleTasksService.GetTasksAsync(card.User, card.IntegrationExternalId);
-                        foreach (var task in freshTasks)
-                        {
-                            var dbItem = card.ListItems.FirstOrDefault(li => li.IntegrationExternalId == task.Id);
-                            if (dbItem != null)
-                            {
-                                dbItem.Position = task.Position;
-                            }
-                        }
-                    }
-                    catch (System.Exception ex)
-                    {
-                        logger.LogError(ex, "Error moving task in Google Tasks for CardId {CardId}, ItemId {ItemId}", cardId, request.MovedItemId);
-                    }
-                }
-            }
-
-            // Always update local positions for non-GoogleTasks items
-            if (card.IntegrationSource != "GoogleTasks")
-            {
-                for (int i = 0; i < request.ItemIds.Count; i++)
-                {
-                    var itemId = request.ItemIds[i];
-                    var item = card.ListItems.FirstOrDefault(li => li.Id == itemId);
-                    if (item != null)
-                    {
-                        item.Position = i.ToString("D10");
-                    }
-                }
-            }
-
-            await db.SaveChangesAsync();
-            return Results.Ok(ToDto(card));
+            var result = await cardService.ReorderListItemsAsync(cardId, request);
+            if (result == null) return Results.NotFound();
+            return Results.Ok(result);
         }).WithTags("Cards");
 
         // --- Scheduled Instance endpoints ---
 
-        group.MapPost("/{cardId}/items/{itemId}/instances", async (int cardId, int itemId, ScheduledInstance instanceReq, LifePlannerDbContext db) =>
+        // POST /api/cards/{cardId}/items/{itemId}/instances
+        group.MapPost("/{cardId:int}/items/{itemId:int}/instances", async (int cardId, int itemId, ScheduledInstance instanceReq, ICardService cardService) =>
         {
-            var item = await db.ListItems.Include(i => i.ScheduledInstances).FirstOrDefaultAsync(i => i.Id == itemId && i.CardId == cardId);
-            if (item is null) return Results.NotFound();
-
-            var newInstance = new ScheduledInstance
-            {
-                Date = instanceReq.Date,
-                IsCompleted = instanceReq.IsCompleted,
-                ListItemId = itemId,
-                Title = item.Text
-            };
-            db.ScheduledInstances.Add(newInstance);
-            await db.SaveChangesAsync();
-
-            return Results.Created($"/api/cards/{cardId}/items/{itemId}/instances/{newInstance.Id}", ToInstanceDto(newInstance));
+            instanceReq.ListItemId = itemId;
+            var result = await cardService.CreateScheduledInstanceAsync(instanceReq);
+            if (result == null) return Results.NotFound();
+            return Results.Created($"/api/cards/{cardId}/items/{itemId}/instances/{result.Id}", result);
         }).WithTags("Cards");
 
-        group.MapPut("/{cardId}/items/{itemId}/instances/{instanceId}", async (int cardId, int itemId, int instanceId, ScheduledInstance updatedInstance, LifePlannerDbContext db, IMicrosoftTodoService todoService, IGoogleTasksService googleTasksService, ILoggerFactory loggerFactory) =>
+        // PUT /api/cards/{cardId}/items/{itemId}/instances/{instanceId}
+        group.MapPut("/{cardId:int}/items/{itemId:int}/instances/{instanceId:int}", async (int cardId, int itemId, int instanceId, ScheduledInstance updatedInstance, ICardService cardService) =>
         {
-            var logger = loggerFactory.CreateLogger("CardEndpoints");
-            var inst = await db.ScheduledInstances
-                .Include(s => s.ListItem)
-                    .ThenInclude(li => li!.Card)
-                        .ThenInclude(c => c!.User)
-                .FirstOrDefaultAsync(s => s.Id == instanceId && s.ListItemId == itemId);
-            if (inst is null) return Results.NotFound();
-
-            bool completionChanged = inst.IsCompleted != updatedInstance.IsCompleted;
-
-            inst.Date = updatedInstance.Date;
-            inst.IsCompleted = updatedInstance.IsCompleted;
-
-            if (completionChanged && inst.ListItem != null)
-            {
-                inst.ListItem.IsCompleted = updatedInstance.IsCompleted;
-
-                // Sync to all other scheduled instances of the same list item
-                var otherInstances = await db.ScheduledInstances
-                    .Where(si => si.ListItemId == inst.ListItemId && si.Id != inst.Id)
-                    .ToListAsync();
-                foreach (var other in otherInstances)
-                {
-                    other.IsCompleted = updatedInstance.IsCompleted;
-                }
-
-                var card = inst.ListItem.Card;
-                if (card?.IntegrationSource == "MicrosoftTodo" &&
-                    !string.IsNullOrEmpty(inst.ListItem.IntegrationExternalId) &&
-                    !string.IsNullOrEmpty(card.IntegrationExternalId) &&
-                    card.User != null && card.User.MicrosoftTodoConnected)
-                {
-                    try
-                    {
-                        var accessToken = await todoService.GetOrRefreshTokenAsync(card.User);
-                        await todoService.UpdateTaskAsync(accessToken, card.IntegrationExternalId, inst.ListItem.IntegrationExternalId, isCompleted: updatedInstance.IsCompleted);
-                    }
-                    catch (System.Exception ex)
-                    {
-                        logger.LogError(ex, "Error syncing task completion with Microsoft To-Do for InstanceId {InstanceId}", instanceId);
-                    }
-                }
-                else if (card?.IntegrationSource == "GoogleTasks" &&
-                         !string.IsNullOrEmpty(inst.ListItem.IntegrationExternalId) &&
-                         !string.IsNullOrEmpty(card.IntegrationExternalId) &&
-                         card.User != null && card.User.GoogleTasksConnected)
-                {
-                    try
-                    {
-                        await googleTasksService.UpdateTaskAsync(card.User, card.IntegrationExternalId, inst.ListItem.IntegrationExternalId, isCompleted: updatedInstance.IsCompleted);
-                    }
-                    catch (System.Exception ex)
-                    {
-                        logger.LogError(ex, "Error syncing task completion with Google Tasks for InstanceId {InstanceId}", instanceId);
-                    }
-                }
-            }
-
-            await db.SaveChangesAsync();
-
-            return Results.Ok(ToInstanceDto(inst));
+            var result = await cardService.UpdateScheduledInstanceAsync(instanceId, updatedInstance);
+            if (result == null) return Results.NotFound();
+            return Results.Ok(result);
         }).WithTags("Cards");
 
-        group.MapDelete("/{cardId}/items/{itemId}/instances/{instanceId}", async (int cardId, int itemId, int instanceId, LifePlannerDbContext db) =>
+        // DELETE /api/cards/{cardId}/items/{itemId}/instances/{instanceId}
+        group.MapDelete("/{cardId:int}/items/{itemId:int}/instances/{instanceId:int}", async (int cardId, int itemId, int instanceId, ICardService cardService) =>
         {
-            var inst = await db.ScheduledInstances.FirstOrDefaultAsync(s => s.Id == instanceId && s.ListItemId == itemId);
-            if (inst is null) return Results.NotFound();
-
-            db.ScheduledInstances.Remove(inst);
-            await db.SaveChangesAsync();
+            var success = await cardService.DeleteScheduledInstanceAsync(instanceId);
+            if (!success) return Results.NotFound();
             return Results.NoContent();
         }).WithTags("Cards");
 
         // --- Flat Scheduled Instance endpoints ---
 
         // GET /api/workspaces/{workspaceId}/scheduled-instances
-        app.MapGet("/api/workspaces/{workspaceId:int}/scheduled-instances", async (int workspaceId, LifePlannerDbContext db) =>
+        app.MapGet("/api/workspaces/{workspaceId:int}/scheduled-instances", async (int workspaceId, ICardService cardService) =>
         {
-            var instances = await db.ScheduledInstances
-                .Include(si => si.Category)
-                .Include(si => si.ListItem)
-                    .ThenInclude(li => li!.Card)
-                        .ThenInclude(c => c!.Category)
-                .Where(si => si.WorkspaceId == workspaceId)
-                .ToListAsync();
-            return Results.Ok(instances.Select(ToInstanceDto));
+            var result = await cardService.GetScheduledInstancesByWorkspaceIdAsync(workspaceId);
+            return Results.Ok(result);
         }).WithTags("ScheduledInstances");
 
         var instanceGroup = app.MapGroup("/api/scheduled-instances").WithTags("ScheduledInstances");
 
         // POST /api/scheduled-instances
-        instanceGroup.MapPost("/", async (ScheduledInstance instance, LifePlannerDbContext db) =>
+        instanceGroup.MapPost("/", async (ScheduledInstance instance, ICardService cardService) =>
         {
-            if (!instance.WorkspaceId.HasValue || instance.WorkspaceId.Value <= 0 || instance.UserId <= 0)
-            {
-                return Results.BadRequest("WorkspaceId and UserId are required.");
-            }
-
-            if (instance.ListItemId.HasValue)
-            {
-                var item = await db.ListItems.Include(li => li.Card).FirstOrDefaultAsync(li => li.Id == instance.ListItemId.Value);
-                if (item == null) return Results.NotFound("ListItem not found.");
-                
-                // If it is linked to a task, we set the task context title
-                instance.Title = item.Text;
-            }
-
-            db.ScheduledInstances.Add(instance);
-            await db.SaveChangesAsync();
-
-            // Load it back with includes
-            var reloaded = await db.ScheduledInstances
-                .Include(si => si.Category)
-                .Include(si => si.ListItem)
-                    .ThenInclude(li => li!.Card)
-                        .ThenInclude(c => c!.Category)
-                .FirstAsync(si => si.Id == instance.Id);
-
-            return Results.Created($"/api/scheduled-instances/{instance.Id}", ToInstanceDto(reloaded));
+            var result = await cardService.CreateScheduledInstanceAsync(instance);
+            if (result == null) return Results.BadRequest("WorkspaceId and UserId are required, or item not found.");
+            return Results.Created($"/api/scheduled-instances/{result.Id}", result);
         });
 
         // PUT /api/scheduled-instances/{id}
-        instanceGroup.MapPut("/{id:int}", async (int id, ScheduledInstance updatedInstance, LifePlannerDbContext db, IMicrosoftTodoService todoService, IGoogleTasksService googleTasksService, IGoogleCalendarService calendarService, ILoggerFactory loggerFactory) =>
+        instanceGroup.MapPut("/{id:int}", async (int id, ScheduledInstance updatedInstance, ICardService cardService) =>
         {
-            var logger = loggerFactory.CreateLogger("CardEndpoints");
-            var inst = await db.ScheduledInstances
-                .Include(si => si.ListItem)
-                    .ThenInclude(li => li!.Card)
-                        .ThenInclude(c => c!.User)
-                .FirstOrDefaultAsync(s => s.Id == id);
-            if (inst is null) return Results.NotFound();
-
-            bool completionChanged = inst.IsCompleted != updatedInstance.IsCompleted;
-            bool confirmationStatusChanged = inst.IsConfirmed != updatedInstance.IsConfirmed;
-            bool isNowConfirmed = updatedInstance.IsConfirmed;
-
-            inst.Date = updatedInstance.Date;
-            inst.IsCompleted = updatedInstance.IsCompleted;
-            inst.Title = updatedInstance.Title;
-            inst.Description = updatedInstance.Description;
-            inst.Type = updatedInstance.Type;
-            inst.StartTime = updatedInstance.StartTime;
-            inst.EndTime = updatedInstance.EndTime;
-            inst.CategoryId = updatedInstance.CategoryId;
-            inst.ListItemId = updatedInstance.ListItemId;
-            inst.IsConfirmed = updatedInstance.IsConfirmed;
-
-            if (completionChanged && inst.ListItem != null)
-            {
-                inst.ListItem.IsCompleted = updatedInstance.IsCompleted;
-
-                // Sync to all other scheduled instances of the same list item
-                var otherInstances = await db.ScheduledInstances
-                    .Where(si => si.ListItemId == inst.ListItemId && si.Id != inst.Id)
-                    .ToListAsync();
-                foreach (var other in otherInstances)
-                {
-                    other.IsCompleted = updatedInstance.IsCompleted;
-                }
-
-                var card = inst.ListItem.Card;
-                if (card?.IntegrationSource == "MicrosoftTodo" &&
-                    !string.IsNullOrEmpty(inst.ListItem.IntegrationExternalId) &&
-                    !string.IsNullOrEmpty(card.IntegrationExternalId) &&
-                    card.User != null && card.User.MicrosoftTodoConnected)
-                {
-                    try
-                    {
-                        var accessToken = await todoService.GetOrRefreshTokenAsync(card.User);
-                        await todoService.UpdateTaskAsync(accessToken, card.IntegrationExternalId, inst.ListItem.IntegrationExternalId, isCompleted: updatedInstance.IsCompleted);
-                    }
-                    catch (System.Exception ex)
-                    {
-                        logger.LogError(ex, "Error syncing task completion with Microsoft To-Do for InstanceId {InstanceId}", id);
-                    }
-                }
-                else if (card?.IntegrationSource == "GoogleTasks" &&
-                         !string.IsNullOrEmpty(inst.ListItem.IntegrationExternalId) &&
-                         !string.IsNullOrEmpty(card.IntegrationExternalId) &&
-                         card.User != null && card.User.GoogleTasksConnected)
-                {
-                    try
-                    {
-                        await googleTasksService.UpdateTaskAsync(card.User, card.IntegrationExternalId, inst.ListItem.IntegrationExternalId, isCompleted: updatedInstance.IsCompleted);
-                    }
-                    catch (System.Exception ex)
-                    {
-                        logger.LogError(ex, "Error syncing task completion with Google Tasks for InstanceId {InstanceId}", id);
-                    }
-                }
-            }
-
-            // Sync to Google Calendar
-            if (isNowConfirmed)
-            {
-                var user = await db.Users.FindAsync(inst.UserId);
-                if (user != null && !string.IsNullOrEmpty(user.GoogleAccessToken))
-                {
-                    try
-                    {
-                        if (string.IsNullOrEmpty(inst.GoogleEventId))
-                        {
-                            var eventId = await calendarService.CreateEventAsync(user, inst);
-                            inst.GoogleEventId = eventId;
-                        }
-                        else
-                        {
-                            await calendarService.UpdateEventAsync(user, inst);
-                        }
-                    }
-                    catch (System.Exception ex)
-                    {
-                        logger.LogError(ex, "Error syncing to Google Calendar for InstanceId {InstanceId}", id);
-                    }
-                }
-            }
-            else if (confirmationStatusChanged && !isNowConfirmed)
-            {
-                var user = await db.Users.FindAsync(inst.UserId);
-                if (user != null && !string.IsNullOrEmpty(user.GoogleAccessToken) && !string.IsNullOrEmpty(inst.GoogleEventId))
-                {
-                    try
-                    {
-                        await calendarService.DeleteEventAsync(user, inst.GoogleEventId);
-                        inst.GoogleEventId = null;
-                    }
-                    catch (System.Exception ex)
-                    {
-                        logger.LogError(ex, "Error deleting Google Calendar event for InstanceId {InstanceId}", id);
-                    }
-                }
-            }
-
-            await db.SaveChangesAsync();
-
-            // Reload it back with includes
-            var reloaded = await db.ScheduledInstances
-                .Include(si => si.Category)
-                .Include(si => si.ListItem)
-                    .ThenInclude(li => li!.Card)
-                        .ThenInclude(c => c!.Category)
-                .FirstAsync(si => si.Id == id);
-
-            return Results.Ok(ToInstanceDto(reloaded));
+            var result = await cardService.UpdateScheduledInstanceAsync(id, updatedInstance);
+            if (result == null) return Results.NotFound();
+            return Results.Ok(result);
         });
 
         // DELETE /api/scheduled-instances/{id}
-        instanceGroup.MapDelete("/{id:int}", async (int id, LifePlannerDbContext db, IGoogleCalendarService calendarService, ILoggerFactory loggerFactory) =>
+        instanceGroup.MapDelete("/{id:int}", async (int id, ICardService cardService) =>
         {
-            var logger = loggerFactory.CreateLogger("CardEndpoints");
-            var inst = await db.ScheduledInstances.FirstOrDefaultAsync(s => s.Id == id);
-            if (inst is null) return Results.NotFound();
-
-            if (inst.IsConfirmed && !string.IsNullOrEmpty(inst.GoogleEventId))
-            {
-                var user = await db.Users.FindAsync(inst.UserId);
-                if (user != null && !string.IsNullOrEmpty(user.GoogleAccessToken))
-                {
-                    try
-                    {
-                        await calendarService.DeleteEventAsync(user, inst.GoogleEventId);
-                    }
-                    catch (System.Exception ex)
-                    {
-                        logger.LogError(ex, "Error deleting Google Calendar event for InstanceId {InstanceId}", id);
-                    }
-                }
-            }
-
-            db.ScheduledInstances.Remove(inst);
-            await db.SaveChangesAsync();
+            var success = await cardService.DeleteScheduledInstanceAsync(id);
+            if (!success) return Results.NotFound();
             return Results.NoContent();
         });
     }
-
-    private static CardDto ToDto(Card c) => new()
-    {
-        Id = c.Id,
-        Order = c.Order,
-        Title = c.Title,
-        Description = c.Description,
-        ScheduledDate = c.ScheduledDate,
-        IsChecklist = c.IsChecklist,
-        ListItems = c.ListItems
-            .OrderBy(li => li.Position)
-            .ThenByDescending(li => li.Id)
-            .Select(ToItemDto)
-            .ToList(),
-        CategoryId = c.CategoryId,
-        UserId = c.UserId,
-        WorkspaceId = c.WorkspaceId ?? 0,
-        IntegrationSource = c.IntegrationSource,
-        IntegrationExternalId = c.IntegrationExternalId,
-        WhiteboardX = c.WhiteboardX,
-        WhiteboardY = c.WhiteboardY,
-        IsStickyNote = c.IsStickyNote,
-        Color = c.Color,
-        Category = c.Category != null ? new CategoryDto
-        {
-            Id = c.Category.Id,
-            Name = c.Category.Name,
-            Color = c.Category.Color
-        } : null
-    };
-
-    private static ListItemDto ToItemDto(ListItem i) => new()
-    {
-        Id = i.Id,
-        Text = i.Text,
-        IsCompleted = i.IsCompleted,
-        CardId = i.CardId,
-        IntegrationExternalId = i.IntegrationExternalId,
-        Position = i.Position,
-        ScheduledInstances = i.ScheduledInstances?.Select(ToInstanceDto).ToList() ?? new()
-    };
-
-    private static ScheduledInstanceDto ToInstanceDto(ScheduledInstance inst) => new()
-    {
-        Id = inst.Id,
-        Date = inst.Date,
-        IsCompleted = inst.IsCompleted,
-        UserId = inst.UserId,
-        WorkspaceId = inst.WorkspaceId ?? 0,
-        ListItemId = inst.ListItemId,
-        CategoryId = inst.CategoryId,
-        Title = inst.ListItem?.Text ?? inst.Title,
-        Description = inst.Description,
-        Type = inst.Type,
-        StartTime = inst.StartTime,
-        EndTime = inst.EndTime,
-        IsConfirmed = inst.IsConfirmed,
-        GoogleEventId = inst.GoogleEventId,
-        Category = inst.Category != null ? new CategoryDto
-        {
-            Id = inst.Category.Id,
-            Name = inst.Category.Name,
-            Color = inst.Category.Color
-        } : (inst.ListItem?.Card?.Category != null ? new CategoryDto
-        {
-            Id = inst.ListItem.Card.Category.Id,
-            Name = inst.ListItem.Card.Category.Name,
-            Color = inst.ListItem.Card.Category.Color
-        } : null),
-        ParentCardTitle = inst.ListItem?.Card?.Title,
-        IntegrationSource = inst.ListItem?.Card?.IntegrationSource
-    };
 }
-
-public record ReorderItemsRequest(int MovedItemId, List<int> ItemIds);
