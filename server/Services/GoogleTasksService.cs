@@ -23,11 +23,35 @@ public class GoogleTasksService : IGoogleTasksService
         });
     }
 
+    private async System.Threading.Tasks.Task<T> ExecuteWithAuthHandlingAsync<T>(Func<System.Threading.Tasks.Task<T>> action)
+    {
+        try
+        {
+            return await action();
+        }
+        catch (Google.GoogleApiException ex) when (ex.HttpStatusCode == System.Net.HttpStatusCode.Unauthorized)
+        {
+            throw new UnauthorizedAccessException("Google Tasks access token has expired or is invalid.", ex);
+        }
+    }
+
+    private async System.Threading.Tasks.Task ExecuteWithAuthHandlingAsync(Func<System.Threading.Tasks.Task> action)
+    {
+        try
+        {
+            await action();
+        }
+        catch (Google.GoogleApiException ex) when (ex.HttpStatusCode == System.Net.HttpStatusCode.Unauthorized)
+        {
+            throw new UnauthorizedAccessException("Google Tasks access token has expired or is invalid.", ex);
+        }
+    }
+
     public async System.Threading.Tasks.Task<IList<TaskList>> GetTaskListsAsync(User user)
     {
         var service = GetService(user);
         var request = service.Tasklists.List();
-        var result = await request.ExecuteAsync();
+        var result = await ExecuteWithAuthHandlingAsync(() => request.ExecuteAsync());
         return result.Items ?? new List<TaskList>();
     }
 
@@ -37,7 +61,7 @@ public class GoogleTasksService : IGoogleTasksService
         var request = service.Tasks.List(taskListId);
         request.ShowCompleted = true;
         request.ShowHidden = true;
-        var result = await request.ExecuteAsync();
+        var result = await ExecuteWithAuthHandlingAsync(() => request.ExecuteAsync());
         return result.Items ?? new List<GoogleTask>();
     }
 
@@ -49,7 +73,7 @@ public class GoogleTasksService : IGoogleTasksService
             Title = title
         };
         var request = service.Tasks.Insert(newTask, taskListId);
-        var result = await request.ExecuteAsync();
+        var result = await ExecuteWithAuthHandlingAsync(() => request.ExecuteAsync());
         return result;
     }
 
@@ -73,7 +97,7 @@ public class GoogleTasksService : IGoogleTasksService
         }
 
         var request = service.Tasks.Patch(taskToUpdate, taskListId, taskId);
-        await request.ExecuteAsync();
+        await ExecuteWithAuthHandlingAsync(() => request.ExecuteAsync());
     }
 
     public async System.Threading.Tasks.Task<GoogleTask> MoveTaskAsync(User user, string taskListId, string taskId, string? previousTaskId)
@@ -84,13 +108,13 @@ public class GoogleTasksService : IGoogleTasksService
         {
             request.Previous = previousTaskId;
         }
-        return await request.ExecuteAsync();
+        return await ExecuteWithAuthHandlingAsync(() => request.ExecuteAsync());
     }
 
     public async System.Threading.Tasks.Task DeleteTaskAsync(User user, string taskListId, string taskId)
     {
         var service = GetService(user);
         var request = service.Tasks.Delete(taskListId, taskId);
-        await request.ExecuteAsync();
+        await ExecuteWithAuthHandlingAsync(() => request.ExecuteAsync());
     }
 }

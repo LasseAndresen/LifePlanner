@@ -29,7 +29,7 @@ public static class IntegrationEndpoints
             {
                 return Results.BadRequest(ex.Message);
             }
-        });
+        }).RequireRateLimiting("SyncLimiter");
 
         group.MapPost("/disconnect/{userId:int}", async (int userId, ConnectRequest request, IIntegrationService service) =>
         {
@@ -46,7 +46,7 @@ public static class IntegrationEndpoints
             {
                 return Results.BadRequest(ex.Message);
             }
-        });
+        }).RequireRateLimiting("SyncLimiter");
 
         group.MapGet("/google-tasks/lists/{userId:int}", async (int userId, IIntegrationService service) =>
         {
@@ -72,7 +72,7 @@ public static class IntegrationEndpoints
             {
                 return Results.BadRequest(ex.Message);
             }
-        });
+        }).RequireRateLimiting("SyncLimiter");
 
         group.MapPost("/google-tasks/sync/{userId:int}", async (int userId, IIntegrationService service) =>
         {
@@ -85,7 +85,7 @@ public static class IntegrationEndpoints
             {
                 return Results.BadRequest(ex.Message);
             }
-        });
+        }).RequireRateLimiting("SyncLimiter");
 
         group.MapPost("/todo/sync/{userId:int}", async (int userId, IIntegrationService service) =>
         {
@@ -98,24 +98,26 @@ public static class IntegrationEndpoints
             {
                 return Results.BadRequest(ex.Message);
             }
-        });
+        }).RequireRateLimiting("SyncLimiter");
 
         group.MapGet("/connect/microsoft/login", (int state, IMicrosoftTodoService service) =>
         {
             return Results.Redirect(service.GetAuthorizationUrl(state));
         });
 
-        group.MapGet("/microsoft/callback", async (string code, string state, IMicrosoftTodoService todoService, IIntegrationService integrationService, LifePlanner.Api.Data.LifePlannerDbContext context) =>
+        group.MapGet("/microsoft/callback", async (string code, string state, IMicrosoftTodoService todoService, IIntegrationService integrationService, LifePlanner.Api.Data.LifePlannerDbContext context, IConfiguration config) =>
         {
+            var clientUrl = config["ClientSettings:BaseUrl"] ?? "http://localhost:4200";
+
             if (!int.TryParse(state, out var userId))
             {
-                return Results.Redirect("http://localhost:4200/?integration=microsoft-error&message=Invalid+state+parameter");
+                return Results.Redirect($"{clientUrl}/?integration=microsoft-error&message=Invalid+state+parameter");
             }
 
             var user = await context.Users.FindAsync(userId);
             if (user == null)
             {
-                return Results.Redirect("http://localhost:4200/?integration=microsoft-error&message=User+not+found");
+                return Results.Redirect($"{clientUrl}/?integration=microsoft-error&message=User+not+found");
             }
 
             try
@@ -133,11 +135,11 @@ public static class IntegrationEndpoints
                 // Automatically sync tasks on connection success
                 await integrationService.SyncMicrosoftTodoAsync(userId);
 
-                return Results.Redirect("http://localhost:4200/?integration=microsoft-success");
+                return Results.Redirect($"{clientUrl}/?integration=microsoft-success");
             }
             catch (Exception ex)
             {
-                return Results.Redirect($"http://localhost:4200/?integration=microsoft-error&message={Uri.EscapeDataString(ex.Message)}");
+                return Results.Redirect($"{clientUrl}/?integration=microsoft-error&message={Uri.EscapeDataString(ex.Message)}");
             }
         });
     }

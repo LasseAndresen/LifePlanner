@@ -22,6 +22,30 @@ public class GoogleCalendarService : IGoogleCalendarService
         });
     }
 
+    private async Task<T> ExecuteWithAuthHandlingAsync<T>(Func<Task<T>> action)
+    {
+        try
+        {
+            return await action();
+        }
+        catch (Google.GoogleApiException ex) when (ex.HttpStatusCode == System.Net.HttpStatusCode.Unauthorized)
+        {
+            throw new UnauthorizedAccessException("Google Calendar access token has expired or is invalid.", ex);
+        }
+    }
+
+    private async Task ExecuteWithAuthHandlingAsync(Func<Task> action)
+    {
+        try
+        {
+            await action();
+        }
+        catch (Google.GoogleApiException ex) when (ex.HttpStatusCode == System.Net.HttpStatusCode.Unauthorized)
+        {
+            throw new UnauthorizedAccessException("Google Calendar access token has expired or is invalid.", ex);
+        }
+    }
+
     public async Task<Events> GetUpcomingEventsAsync(User user, DateTime? start = null, DateTime? end = null)
     {
         var service = GetService(user);
@@ -33,7 +57,7 @@ public class GoogleCalendarService : IGoogleCalendarService
         request.SingleEvents = true;
         request.OrderBy = EventsResource.ListRequest.OrderByEnum.StartTime;
 
-        return await request.ExecuteAsync();
+        return await ExecuteWithAuthHandlingAsync(() => request.ExecuteAsync());
     }
 
     public async Task<string> CreateEventAsync(User user, ScheduledInstance instance)
@@ -59,7 +83,7 @@ public class GoogleCalendarService : IGoogleCalendarService
         }
 
         var request = service.Events.Insert(ev, "primary");
-        var createdEvent = await request.ExecuteAsync();
+        var createdEvent = await ExecuteWithAuthHandlingAsync(() => request.ExecuteAsync());
         return createdEvent.Id;
     }
 
@@ -73,7 +97,7 @@ public class GoogleCalendarService : IGoogleCalendarService
         Event ev;
         try
         {
-            ev = await service.Events.Get("primary", instance.GoogleEventId).ExecuteAsync();
+            ev = await ExecuteWithAuthHandlingAsync(() => service.Events.Get("primary", instance.GoogleEventId).ExecuteAsync());
         }
         catch (Google.GoogleApiException ex) when (ex.HttpStatusCode == System.Net.HttpStatusCode.NotFound)
         {
@@ -99,7 +123,7 @@ public class GoogleCalendarService : IGoogleCalendarService
         }
 
         var request = service.Events.Update(ev, "primary", instance.GoogleEventId);
-        await request.ExecuteAsync();
+        await ExecuteWithAuthHandlingAsync(() => request.ExecuteAsync());
     }
 
     public async Task DeleteEventAsync(User user, string googleEventId)
@@ -112,7 +136,7 @@ public class GoogleCalendarService : IGoogleCalendarService
         try
         {
             var request = service.Events.Delete("primary", googleEventId);
-            await request.ExecuteAsync();
+            await ExecuteWithAuthHandlingAsync(() => request.ExecuteAsync());
         }
         catch (Google.GoogleApiException ex) when (ex.HttpStatusCode == System.Net.HttpStatusCode.NotFound)
         {

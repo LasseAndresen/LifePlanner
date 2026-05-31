@@ -11,14 +11,14 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace LifePlanner.Api.Migrations
 {
     [DbContext(typeof(LifePlannerDbContext))]
-    [Migration("20260524192051_AddFeedbackTable")]
-    partial class AddFeedbackTable
+    [Migration("20260531200342_InitialCreate")]
+    partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
-            modelBuilder.HasAnnotation("ProductVersion", "10.0.7");
+            modelBuilder.HasAnnotation("ProductVersion", "10.0.8");
 
             modelBuilder.Entity("LifePlanner.Api.Models.Card", b =>
                 {
@@ -28,6 +28,9 @@ namespace LifePlanner.Api.Migrations
 
                     b.Property<int>("CategoryId")
                         .HasColumnType("INTEGER");
+
+                    b.Property<string>("Color")
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Description")
                         .HasColumnType("TEXT");
@@ -39,6 +42,9 @@ namespace LifePlanner.Api.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<bool>("IsChecklist")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsStickyNote")
                         .HasColumnType("INTEGER");
 
                     b.Property<int>("Order")
@@ -54,11 +60,22 @@ namespace LifePlanner.Api.Migrations
                     b.Property<int>("UserId")
                         .HasColumnType("INTEGER");
 
+                    b.Property<double?>("WhiteboardX")
+                        .HasColumnType("REAL");
+
+                    b.Property<double?>("WhiteboardY")
+                        .HasColumnType("REAL");
+
+                    b.Property<int?>("WorkspaceId")
+                        .HasColumnType("INTEGER");
+
                     b.HasKey("Id");
 
                     b.HasIndex("CategoryId");
 
                     b.HasIndex("UserId");
+
+                    b.HasIndex("WorkspaceId");
 
                     b.ToTable("Cards");
                 });
@@ -80,9 +97,14 @@ namespace LifePlanner.Api.Migrations
                     b.Property<int>("UserId")
                         .HasColumnType("INTEGER");
 
+                    b.Property<int?>("WorkspaceId")
+                        .HasColumnType("INTEGER");
+
                     b.HasKey("Id");
 
                     b.HasIndex("UserId");
+
+                    b.HasIndex("WorkspaceId");
 
                     b.ToTable("Categories");
                 });
@@ -140,6 +162,9 @@ namespace LifePlanner.Api.Migrations
                     b.Property<bool>("IsCompleted")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("Position")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Text")
                         .IsRequired()
                         .HasColumnType("TEXT");
@@ -169,7 +194,13 @@ namespace LifePlanner.Api.Migrations
                     b.Property<DateTime?>("EndTime")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("GoogleEventId")
+                        .HasColumnType("TEXT");
+
                     b.Property<bool>("IsCompleted")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsConfirmed")
                         .HasColumnType("INTEGER");
 
                     b.Property<int?>("ListItemId")
@@ -187,6 +218,9 @@ namespace LifePlanner.Api.Migrations
                     b.Property<int>("UserId")
                         .HasColumnType("INTEGER");
 
+                    b.Property<int?>("WorkspaceId")
+                        .HasColumnType("INTEGER");
+
                     b.HasKey("Id");
 
                     b.HasIndex("CategoryId");
@@ -194,6 +228,8 @@ namespace LifePlanner.Api.Migrations
                     b.HasIndex("ListItemId");
 
                     b.HasIndex("UserId");
+
+                    b.HasIndex("WorkspaceId");
 
                     b.ToTable("ScheduledInstances");
                 });
@@ -247,6 +283,50 @@ namespace LifePlanner.Api.Migrations
                     b.ToTable("Users");
                 });
 
+            modelBuilder.Entity("LifePlanner.Api.Models.Workspace", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("InviteToken")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Workspaces");
+                });
+
+            modelBuilder.Entity("LifePlanner.Api.Models.WorkspaceUser", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("WorkspaceId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("WorkspaceId", "UserId")
+                        .IsUnique();
+
+                    b.ToTable("WorkspaceUsers");
+                });
+
             modelBuilder.Entity("LifePlanner.Api.Models.Card", b =>
                 {
                     b.HasOne("LifePlanner.Api.Models.Category", "Category")
@@ -261,9 +341,16 @@ namespace LifePlanner.Api.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("LifePlanner.Api.Models.Workspace", "Workspace")
+                        .WithMany("Cards")
+                        .HasForeignKey("WorkspaceId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
                     b.Navigation("Category");
 
                     b.Navigation("User");
+
+                    b.Navigation("Workspace");
                 });
 
             modelBuilder.Entity("LifePlanner.Api.Models.Category", b =>
@@ -274,7 +361,14 @@ namespace LifePlanner.Api.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("LifePlanner.Api.Models.Workspace", "Workspace")
+                        .WithMany("Categories")
+                        .HasForeignKey("WorkspaceId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
                     b.Navigation("User");
+
+                    b.Navigation("Workspace");
                 });
 
             modelBuilder.Entity("LifePlanner.Api.Models.Feedback", b =>
@@ -313,11 +407,37 @@ namespace LifePlanner.Api.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("LifePlanner.Api.Models.Workspace", "Workspace")
+                        .WithMany("ScheduledInstances")
+                        .HasForeignKey("WorkspaceId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
                     b.Navigation("Category");
 
                     b.Navigation("ListItem");
 
                     b.Navigation("User");
+
+                    b.Navigation("Workspace");
+                });
+
+            modelBuilder.Entity("LifePlanner.Api.Models.WorkspaceUser", b =>
+                {
+                    b.HasOne("LifePlanner.Api.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("LifePlanner.Api.Models.Workspace", "Workspace")
+                        .WithMany("WorkspaceUsers")
+                        .HasForeignKey("WorkspaceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+
+                    b.Navigation("Workspace");
                 });
 
             modelBuilder.Entity("LifePlanner.Api.Models.Card", b =>
@@ -340,6 +460,17 @@ namespace LifePlanner.Api.Migrations
                     b.Navigation("Cards");
 
                     b.Navigation("Categories");
+                });
+
+            modelBuilder.Entity("LifePlanner.Api.Models.Workspace", b =>
+                {
+                    b.Navigation("Cards");
+
+                    b.Navigation("Categories");
+
+                    b.Navigation("ScheduledInstances");
+
+                    b.Navigation("WorkspaceUsers");
                 });
 #pragma warning restore 612, 618
         }

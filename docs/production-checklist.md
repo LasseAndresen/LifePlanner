@@ -119,6 +119,7 @@ Observability ensures errors are caught and solved before they impact end-users.
   - [ ] Deploy client static assets to a serverless edge provider (e.g., Azure Static Web Apps, Netlify, or Vercel).
   - [ ] Deploy the backend API to a container service (e.g., Azure App Service, AWS ECS, Render, or Fly.io).
   - [ ] Set up custom domains and configure automatic SSL/TLS certificate updates via Let's Encrypt or ACM.
+- [ ] **OAuth Integrations compatibility**: Configure Google and Microsoft OAuth redirection domains and client credentials to match the Docker reverse proxy URL pathways (ensuring callback ports/URLs align with the containerized frontend/backend proxying).
 
 ---
 

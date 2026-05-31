@@ -33,41 +33,51 @@ public static class AuthEndpoints
 
             if (user is null)
             {
-                user = new User
+                using var transaction = await db.Database.BeginTransactionAsync();
+                try
                 {
-                    Name = payload.Name,
-                    Email = payload.Email,
-                    GoogleAuthId = payload.Subject,
-                    GoogleAccessToken = request.AccessToken,
-                    GoogleRefreshToken = request.RefreshToken,
-                    GoogleTokenExpiration = request.ExpiresIn.HasValue ? DateTime.UtcNow.AddSeconds(request.ExpiresIn.Value) : null,
-                    IsAdmin = isAdmin
-                };
-                await userRepo.AddAsync(user);
+                    user = new User
+                    {
+                        Name = payload.Name,
+                        Email = payload.Email,
+                        GoogleAuthId = payload.Subject,
+                        GoogleAccessToken = request.AccessToken,
+                        GoogleRefreshToken = request.RefreshToken,
+                        GoogleTokenExpiration = request.ExpiresIn.HasValue ? DateTime.UtcNow.AddSeconds(request.ExpiresIn.Value) : null,
+                        IsAdmin = isAdmin
+                    };
+                    await userRepo.AddAsync(user);
 
-                // Create a default workspace for this user
-                var workspace = new Workspace { Name = "Personal Workspace" };
-                db.Workspaces.Add(workspace);
-                await db.SaveChangesAsync();
+                    // Create a default workspace for this user
+                    var workspace = new Workspace { Name = "Personal Workspace" };
+                    db.Workspaces.Add(workspace);
+                    await db.SaveChangesAsync();
 
-                var workspaceUser = new WorkspaceUser
+                    var workspaceUser = new WorkspaceUser
+                    {
+                        WorkspaceId = workspace.Id,
+                        UserId = user.Id,
+                        Role = "Owner"
+                    };
+                    db.WorkspaceUsers.Add(workspaceUser);
+
+                    // Seed default categories inside this workspace
+                    db.Categories.AddRange(new[]
+                    {
+                        new Category { Name = "Ideas",    Color = "#3b82f6", WorkspaceId = workspace.Id, UserId = user.Id },
+                        new Category { Name = "Chores",   Color = "#10b981", WorkspaceId = workspace.Id, UserId = user.Id },
+                        new Category { Name = "Events",   Color = "#f59e0b", WorkspaceId = workspace.Id, UserId = user.Id },
+                        new Category { Name = "Personal", Color = "#ec4899", WorkspaceId = workspace.Id, UserId = user.Id }
+                    });
+
+                    await db.SaveChangesAsync();
+                    await transaction.CommitAsync();
+                }
+                catch (Exception)
                 {
-                    WorkspaceId = workspace.Id,
-                    UserId = user.Id,
-                    Role = "Owner"
-                };
-                db.WorkspaceUsers.Add(workspaceUser);
-
-                // Seed default categories inside this workspace
-                db.Categories.AddRange(new[]
-                {
-                    new Category { Name = "Ideas",    Color = "#3b82f6", WorkspaceId = workspace.Id, UserId = user.Id },
-                    new Category { Name = "Chores",   Color = "#10b981", WorkspaceId = workspace.Id, UserId = user.Id },
-                    new Category { Name = "Events",   Color = "#f59e0b", WorkspaceId = workspace.Id, UserId = user.Id },
-                    new Category { Name = "Personal", Color = "#ec4899", WorkspaceId = workspace.Id, UserId = user.Id }
-                });
-
-                await db.SaveChangesAsync();
+                    await transaction.RollbackAsync();
+                    throw;
+                }
             }
             else
             {
@@ -97,7 +107,7 @@ public static class AuthEndpoints
                 user.Email,
                 user.IsAdmin
             });
-        }).WithTags("Auth");
+        }).RequireRateLimiting("AuthLimiter").WithTags("Auth");
     }
 }
 

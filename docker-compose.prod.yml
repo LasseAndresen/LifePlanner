@@ -1,0 +1,49 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: lifeplanner-db
+    environment:
+      POSTGRES_DB: lifeplanner
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: your_secure_password_here # Update in actual production
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: lifeplanner-backend
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__DefaultConnection: Host=db;Database=lifeplanner;Username=postgres;Password=your_secure_password_here
+      ClientSettings__BaseUrl: http://localhost # Frontend URL
+      CorsSettings__AllowedOrigins__0: http://localhost
+      Microsoft__ClientId: ${MICROSOFT_CLIENT_ID:-placeholder_client_id}
+      Microsoft__ClientSecret: ${MICROSOFT_CLIENT_SECRET:-placeholder_client_secret}
+      Microsoft__RedirectUri: http://localhost:8080/api/integrations/microsoft/callback
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    container_name: lifeplanner-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:

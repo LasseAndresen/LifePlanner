@@ -28,6 +28,18 @@ export class AuthService {
 
   private async configure(): Promise<void> {
     this.oauthService.configure(authConfig);
+
+    // Synchronize refreshed tokens to the backend
+    this.oauthService.events.subscribe(e => {
+      if (e.type === 'token_received') {
+        const idToken = this.oauthService.getIdToken();
+        const accessToken = this.oauthService.getAccessToken();
+        if (idToken) {
+          this.userService.bootstrapUser(idToken, accessToken).subscribe();
+        }
+      }
+    });
+
     await this.oauthService.loadDiscoveryDocumentAndTryLogin();
 
     if (this.oauthService.hasValidIdToken()) {

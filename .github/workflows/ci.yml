@@ -1,0 +1,76 @@
+name: LifePlanner CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  backend-build:
+    name: Backend Build & Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore server/LifePlanner.Api.csproj
+
+      - name: Build Backend
+        run: dotnet build server/LifePlanner.Api.csproj --no-restore -c Release
+
+      - name: Run Backend Tests
+        run: dotnet test server.tests/server.tests.csproj --no-build -c Release
+
+  frontend-build:
+    name: Frontend Build & Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: client/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          cd client
+          npm ci
+
+      - name: Run Prettier checks
+        run: |
+          cd client
+          npx prettier --check "src/**/*.ts" "src/**/*.html" "src/**/*.css"
+
+      - name: Run Frontend Tests
+        run: |
+          cd client
+          npm run test -- --watch=false
+
+      - name: Build Frontend
+        run: |
+          cd client
+          npm run build -- --configuration=production
+
+  docker-build:
+    name: Verify Docker Builds
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build Backend Docker Image
+        run: docker build -t lifeplanner-backend:test ./server
+
+      - name: Build Frontend Docker Image
+        run: docker build -t lifeplanner-frontend:test ./client
