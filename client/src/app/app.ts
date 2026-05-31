@@ -10,5 +10,5 @@ import { NotificationsComponent } from './features/notifications/notifications.c
   styleUrl: './app.css'
 })
 export class App {
-  protected readonly title = signal('LifePlanner');
+  protected readonly title = signal('Schedulist');
 }

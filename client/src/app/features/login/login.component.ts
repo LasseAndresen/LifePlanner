@@ -9,8 +9,8 @@ import { AuthService } from '../../core/auth/auth.service';
   template: `
     <div class="login-layout">
       <div class="glass-panel login-card">
-        <h1>LifePlanner</h1>
-        <p class="subtitle">Organize your life, perfectly.</p>
+        <h1>Schedulist</h1>
+        <p class="subtitle">Bridges the gap between tasks and time.</p>
         
         <button class="google-btn" (click)="login()">
           <svg viewBox="0 0 24 24" width="24" height="24" xmlns="http://www.w3.org/2000/svg">

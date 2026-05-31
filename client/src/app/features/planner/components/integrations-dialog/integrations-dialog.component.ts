@@ -20,7 +20,7 @@ import { environment } from '../../../../../environments/environment';
           <div class="header-title-area">
             <span class="icon-sparkle">✦</span>
             <h2>Integrations Manager</h2>
-            <p class="subtitle">Connect external applications to your LifePlanner workspace</p>
+            <p class="subtitle">Connect external applications to your Schedulist workspace</p>
           </div>
           <button class="close-btn" (click)="close()" aria-label="Close dialog">✕</button>
         </header>

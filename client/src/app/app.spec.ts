@@ -18,6 +18,6 @@ describe('App', () => {
     const fixture = TestBed.createComponent(App);
     const app = fixture.componentInstance;
     // We cast to any to access the protected title property in tests
-    expect((app as any).title()).toBe('LifePlanner');
+    expect((app as any).title()).toBe('Schedulist');
   });
 });
