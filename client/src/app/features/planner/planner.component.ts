@@ -240,6 +240,16 @@ export class PlannerComponent {
     });
   }
 
+  submitRename(newName: string): void {
+    const workspace = this.workspaceService.activeWorkspace();
+    const currentUserId = this.userService.currentUser()?.id;
+    if (!workspace || !currentUserId || !newName.trim()) return;
+
+    this.workspaceService.renameWorkspace(workspace.id, newName.trim(), currentUserId).subscribe({
+      next: () => this.isWorkspaceSettingsOpen.set(false)
+    });
+  }
+
   removeWorkspaceMember(member: any): void {
     const workspace = this.workspaceService.activeWorkspace();
     const currentUserId = this.userService.currentUser()?.id;

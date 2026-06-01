@@ -155,4 +155,29 @@ describe('WorkspaceService', () => {
     expect(updatedActive?.members?.find(m => m.id === 100)?.role).toBe('Member');
     expect(updatedActive?.members?.find(m => m.id === 102)?.role).toBe('Owner');
   });
+
+  it('should handle renameWorkspace correctly', () => {
+    service.workspaces.set(JSON.parse(JSON.stringify(mockWorkspaces)));
+    service.activeWorkspace.set(JSON.parse(JSON.stringify(mockWorkspaces[0])));
+
+    const updatedWorkspace: Workspace = {
+      id: 1,
+      name: 'Workspace New Name',
+      role: 'Owner',
+      members: [{ id: 100, name: 'Owner User', role: 'Owner', email: 'owner@example.com' }]
+    };
+
+    service.renameWorkspace(1, 'Workspace New Name', 100).subscribe();
+
+    const req = httpMock.expectOne(`${environment.apiBaseUrl}/api/workspaces/1`);
+    expect(req.request.method).toBe('PUT');
+    expect(req.request.body).toEqual({ name: 'Workspace New Name', requesterId: 100 });
+    req.flush(updatedWorkspace);
+
+    // Verify workspace name updated in workspaces list and activeWorkspace
+    const ws1 = service.workspaces().find(w => w.id === 1);
+    expect(ws1?.name).toBe('Workspace New Name');
+    expect(service.activeWorkspace()?.name).toBe('Workspace New Name');
+    expect(mockNotificationService.success).toHaveBeenCalledWith('Workspace renamed to "Workspace New Name"');
+  });
 });

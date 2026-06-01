@@ -237,4 +237,26 @@ export class WorkspaceService {
         })
       );
   }
+
+  renameWorkspace(workspaceId: number, name: string, requesterId: number): Observable<Workspace> {
+    return this.http
+      .put<Workspace>(`${environment.apiBaseUrl}/api/workspaces/${workspaceId}`, { name, requesterId })
+      .pipe(
+        tap(updated => {
+          this.workspaces.update(list =>
+            list.map(w => (w.id === workspaceId ? { ...w, name: updated.name } : w))
+          );
+          const currentActive = this.activeWorkspace();
+          if (currentActive && currentActive.id === workspaceId) {
+            this.activeWorkspace.set({ ...currentActive, name: updated.name });
+          }
+          this.notifications.success(`Workspace renamed to "${updated.name}"`);
+        }),
+        catchError(err => {
+          const msg = err.error?.detail || 'Failed to rename workspace.';
+          this.notifications.error(msg);
+          return throwError(() => err);
+        })
+      );
+  }
 }

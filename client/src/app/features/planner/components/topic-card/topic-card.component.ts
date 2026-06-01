@@ -143,7 +143,7 @@ import { IntegrationService } from '../../../../core/services/integration.servic
           }
         </ul>
 
-        @if ((!card.integrationSource || card.integrationSource === 'MicrosoftTodo' || card.integrationSource === 'GoogleTasks') && !isCollapsed) {
+        @if (!card.integrationSource || card.integrationSource === 'MicrosoftTodo' || card.integrationSource === 'GoogleTasks') {
           @if (addingItem) {
             <div class="add-item-row">
               <input

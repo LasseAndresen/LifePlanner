@@ -22,3 +22,4 @@ public record CreateWorkspaceRequest(string Name, int UserId);
 public record InviteUserRequest(string Email);
 public record JoinWorkspaceRequest(string Token, int UserId);
 public record TransferOwnershipRequest(int NewOwnerId, int RequesterId);
+public record RenameWorkspaceRequest(string Name, int RequesterId);

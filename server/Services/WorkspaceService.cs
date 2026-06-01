@@ -258,6 +258,44 @@ public class WorkspaceService : IWorkspaceService
         return true;
     }
 
+    public async Task<WorkspaceDto?> RenameWorkspaceAsync(int workspaceId, RenameWorkspaceRequest request)
+    {
+        var workspace = await _db.Workspaces
+            .Include(w => w.WorkspaceUsers)
+                .ThenInclude(wu => wu.User)
+            .FirstOrDefaultAsync(w => w.Id == workspaceId);
+
+        if (workspace == null)
+        {
+            return null;
+        }
+
+        var requesterMembership = workspace.WorkspaceUsers
+            .FirstOrDefault(wu => wu.UserId == request.RequesterId);
+
+        if (requesterMembership == null || requesterMembership.Role != "Owner")
+        {
+            throw new UnauthorizedAccessException("Only the workspace owner can rename the workspace.");
+        }
+
+        workspace.Name = request.Name;
+        await _db.SaveChangesAsync();
+
+        return new WorkspaceDto
+        {
+            Id = workspace.Id,
+            Name = workspace.Name,
+            Role = requesterMembership.Role,
+            Members = workspace.WorkspaceUsers.Select(member => new WorkspaceMemberDto
+            {
+                Id = member.User!.Id,
+                Name = member.User.Name,
+                Email = member.User.Email,
+                Role = member.Role
+            }).ToList()
+        };
+    }
+
     private async Task SeedDefaultCategoriesAsync(int workspaceId, int userId)
     {
         var categoriesSection = _configuration.GetSection("WorkspaceSettings:DefaultCategories").Get<List<CategoryConfig>>();

@@ -122,5 +122,28 @@ public static class WorkspaceEndpoints
                 return Results.BadRequest(new { detail = ex.Message });
             }
         });
+
+        // PUT /api/workspaces/{workspaceId}
+        group.MapPut("/{workspaceId:int}", async (int workspaceId, RenameWorkspaceRequest request, IWorkspaceService workspaceService) =>
+        {
+            if (string.IsNullOrWhiteSpace(request.Name) || request.RequesterId <= 0)
+            {
+                return Results.BadRequest("Invalid workspace name or requester ID.");
+            }
+
+            try
+            {
+                var result = await workspaceService.RenameWorkspaceAsync(workspaceId, request);
+                if (result == null)
+                {
+                    return Results.NotFound("Workspace not found.");
+                }
+                return Results.Ok(result);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return Results.BadRequest(new { detail = ex.Message });
+            }
+        });
     }
 }

@@ -192,6 +192,20 @@
             }
           </ul>
         </div>
+
+        <div class="invite-section" style="margin-bottom: 1.5rem; width: 100%;">
+          <h3>Workspace Name</h3>
+          <p class="section-desc">Change the name of this workspace.</p>
+          <div class="invite-form-row">
+            <input 
+              type="text" 
+              #renameInput
+              [value]="activeWorkspaceName()"
+              placeholder="Workspace Name" 
+              class="glass-input" />
+            <button class="invite-btn" (click)="submitRename(renameInput.value)">Rename</button>
+          </div>
+        </div>
         
         <div class="invite-section">
           <h3>Invite Member</h3>

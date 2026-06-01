@@ -13,4 +13,5 @@ public interface IWorkspaceService
     Task<string?> GetInviteTokenAsync(int workspaceId);
     Task<WorkspaceDto?> JoinWorkspaceAsync(JoinWorkspaceRequest request);
     Task<bool> TransferOwnershipAsync(int workspaceId, TransferOwnershipRequest request);
+    Task<WorkspaceDto?> RenameWorkspaceAsync(int workspaceId, RenameWorkspaceRequest request);
 }

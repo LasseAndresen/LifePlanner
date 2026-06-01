@@ -492,4 +492,63 @@ public class test_WorkspaceService
         // Act & Assert
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => service.TransferOwnershipAsync(10, request));
     }
+
+    [Fact]
+    public async Task RenameWorkspaceAsync_ShouldRenameWorkspace_WhenRequesterIsOwner()
+    {
+        // Arrange
+        var (context, configuration) = SetupDependencies();
+        var ws = new Workspace { Id = 10, Name = "Old Name" };
+        var user = new User { Id = 1, Name = "Lasse", Email = "lasse@example.com" };
+        var wu = new WorkspaceUser { WorkspaceId = 10, UserId = 1, Role = "Owner" };
+        await context.Workspaces.AddAsync(ws);
+        await context.Users.AddAsync(user);
+        await context.WorkspaceUsers.AddAsync(wu);
+        await context.SaveChangesAsync();
+
+        var service = new WorkspaceService(context, configuration);
+        var request = new RenameWorkspaceRequest("New Name", 1);
+
+        // Act
+        var result = await service.RenameWorkspaceAsync(10, request);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal("New Name", result.Name);
+        var updatedWs = await context.Workspaces.FindAsync(10);
+        Assert.Equal("New Name", updatedWs!.Name);
+    }
+
+    [Fact]
+    public async Task RenameWorkspaceAsync_ShouldThrow_WhenRequesterIsNotOwner()
+    {
+        // Arrange
+        var (context, configuration) = SetupDependencies();
+        var ws = new Workspace { Id = 10, Name = "Old Name" };
+        var wu = new WorkspaceUser { WorkspaceId = 10, UserId = 2, Role = "Member" };
+        await context.Workspaces.AddAsync(ws);
+        await context.WorkspaceUsers.AddAsync(wu);
+        await context.SaveChangesAsync();
+
+        var service = new WorkspaceService(context, configuration);
+        var request = new RenameWorkspaceRequest("New Name", 2);
+
+        // Act & Assert
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => service.RenameWorkspaceAsync(10, request));
+    }
+
+    [Fact]
+    public async Task RenameWorkspaceAsync_ShouldReturnNull_WhenWorkspaceDoesNotExist()
+    {
+        // Arrange
+        var (context, configuration) = SetupDependencies();
+        var service = new WorkspaceService(context, configuration);
+        var request = new RenameWorkspaceRequest("New Name", 1);
+
+        // Act
+        var result = await service.RenameWorkspaceAsync(999, request);
+
+        // Assert
+        Assert.Null(result);
+    }
 }
