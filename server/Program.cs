@@ -43,7 +43,8 @@ else
 {
     // Use DbContext Pooling and PostgreSQL in production
     builder.Services.AddDbContextPool<LifePlannerDbContext>(options =>
-        options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+        options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"))
+               .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning)));
 }
 
 builder.Services.AddScoped<LifePlanner.Api.Repositories.ICardRepository, LifePlanner.Api.Repositories.CardRepository>();
@@ -186,12 +187,12 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions
     Predicate = _ => true
 });
 
-// Automatically ensure database is created in production
+// Automatically run database migrations in production
 if (!app.Environment.IsDevelopment())
 {
     using var scope = app.Services.CreateScope();
     var dbContext = scope.ServiceProvider.GetRequiredService<LifePlannerDbContext>();
-    await dbContext.Database.EnsureCreatedAsync();
+    await dbContext.Database.MigrateAsync();
 }
 
 app.Run();

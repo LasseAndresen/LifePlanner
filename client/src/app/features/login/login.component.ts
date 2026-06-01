@@ -1,11 +1,12 @@
 import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { RouterLink } from '@angular/router';
 import { AuthService } from '../../core/auth/auth.service';
 
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, RouterLink],
   template: `
     <div class="login-layout">
       <div class="glass-panel login-card">
@@ -24,6 +25,12 @@ import { AuthService } from '../../core/auth/auth.service';
           Sign in with Google
         </button>
         <p class="disclaimer">You need to set up Google Cloud Credentials for this to work.</p>
+
+        <div class="legal-links">
+          <a routerLink="/privacy" class="legal-link">Privacy Policy</a>
+          <span class="divider">•</span>
+          <a routerLink="/terms" class="legal-link">Terms of Service</a>
+        </div>
       </div>
     </div>
   `,
@@ -82,6 +89,25 @@ import { AuthService } from '../../core/auth/auth.service';
     .disclaimer {
       margin-top: 1.5rem;
       font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+    .legal-links {
+      margin-top: 1.5rem;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+    }
+    .legal-link {
+      color: var(--text-secondary);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+    .legal-link:hover {
+      color: var(--accent-primary);
+    }
+    .divider {
       color: var(--text-muted);
     }
   `]

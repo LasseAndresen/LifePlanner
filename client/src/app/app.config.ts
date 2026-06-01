@@ -10,7 +10,7 @@ export const appConfig: ApplicationConfig = {
     provideHttpClient(withInterceptorsFromDi()),
     importProvidersFrom(OAuthModule.forRoot({
       resourceServer: {
-        allowedUrls: ['http://localhost:5197/api'], // Attaches Bearer token to API calls
+        allowedUrls: ['/api', 'http://localhost:5197/api', 'https://schedulist.dev/api'], // Attaches Bearer token to API calls
         sendAccessToken: true
       }
     })),

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -15,20 +15,20 @@ namespace LifePlanner.Api.Migrations
                 name: "Users",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "INTEGER", nullable: false)
-                        .Annotation("Sqlite:Autoincrement", true),
-                    Name = table.Column<string>(type: "TEXT", nullable: false),
-                    Email = table.Column<string>(type: "TEXT", nullable: false),
-                    GoogleAuthId = table.Column<string>(type: "TEXT", nullable: true),
-                    GoogleAccessToken = table.Column<string>(type: "TEXT", nullable: true),
-                    GoogleRefreshToken = table.Column<string>(type: "TEXT", nullable: true),
-                    GoogleTokenExpiration = table.Column<DateTime>(type: "TEXT", nullable: true),
-                    MicrosoftTodoConnected = table.Column<bool>(type: "INTEGER", nullable: false),
-                    MicrosoftAccessToken = table.Column<string>(type: "TEXT", nullable: true),
-                    MicrosoftRefreshToken = table.Column<string>(type: "TEXT", nullable: true),
-                    MicrosoftTokenExpiration = table.Column<DateTime>(type: "TEXT", nullable: true),
-                    GoogleTasksConnected = table.Column<bool>(type: "INTEGER", nullable: false),
-                    IsAdmin = table.Column<bool>(type: "INTEGER", nullable: false)
+                    Id = table.Column<int>(nullable: false)
+                        .Annotation("Sqlite:Autoincrement", true).Annotation("Npgsql:ValueGenerationStrategy", Npgsql.EntityFrameworkCore.PostgreSQL.Metadata.NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    Name = table.Column<string>(nullable: false),
+                    Email = table.Column<string>(nullable: false),
+                    GoogleAuthId = table.Column<string>(nullable: true),
+                    GoogleAccessToken = table.Column<string>(nullable: true),
+                    GoogleRefreshToken = table.Column<string>(nullable: true),
+                    GoogleTokenExpiration = table.Column<DateTime>(nullable: true),
+                    MicrosoftTodoConnected = table.Column<bool>(nullable: false),
+                    MicrosoftAccessToken = table.Column<string>(nullable: true),
+                    MicrosoftRefreshToken = table.Column<string>(nullable: true),
+                    MicrosoftTokenExpiration = table.Column<DateTime>(nullable: true),
+                    GoogleTasksConnected = table.Column<bool>(nullable: false),
+                    IsAdmin = table.Column<bool>(nullable: false)
                 },
                 constraints: table =>
                 {
@@ -39,10 +39,10 @@ namespace LifePlanner.Api.Migrations
                 name: "Workspaces",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "INTEGER", nullable: false)
-                        .Annotation("Sqlite:Autoincrement", true),
-                    Name = table.Column<string>(type: "TEXT", nullable: false),
-                    InviteToken = table.Column<string>(type: "TEXT", nullable: true)
+                    Id = table.Column<int>(nullable: false)
+                        .Annotation("Sqlite:Autoincrement", true).Annotation("Npgsql:ValueGenerationStrategy", Npgsql.EntityFrameworkCore.PostgreSQL.Metadata.NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    Name = table.Column<string>(nullable: false),
+                    InviteToken = table.Column<string>(nullable: true)
                 },
                 constraints: table =>
                 {
@@ -53,15 +53,15 @@ namespace LifePlanner.Api.Migrations
                 name: "Feedback",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "INTEGER", nullable: false)
-                        .Annotation("Sqlite:Autoincrement", true),
-                    UserId = table.Column<int>(type: "INTEGER", nullable: true),
-                    Type = table.Column<string>(type: "TEXT", nullable: false),
-                    Title = table.Column<string>(type: "TEXT", nullable: false),
-                    Description = table.Column<string>(type: "TEXT", nullable: false),
-                    CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    Status = table.Column<string>(type: "TEXT", nullable: false),
-                    AdminNotes = table.Column<string>(type: "TEXT", nullable: true)
+                    Id = table.Column<int>(nullable: false)
+                        .Annotation("Sqlite:Autoincrement", true).Annotation("Npgsql:ValueGenerationStrategy", Npgsql.EntityFrameworkCore.PostgreSQL.Metadata.NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    UserId = table.Column<int>(nullable: true),
+                    Type = table.Column<string>(nullable: false),
+                    Title = table.Column<string>(nullable: false),
+                    Description = table.Column<string>(nullable: false),
+                    CreatedAt = table.Column<DateTime>(nullable: false),
+                    Status = table.Column<string>(nullable: false),
+                    AdminNotes = table.Column<string>(nullable: true)
                 },
                 constraints: table =>
                 {
@@ -77,12 +77,12 @@ namespace LifePlanner.Api.Migrations
                 name: "Categories",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "INTEGER", nullable: false)
-                        .Annotation("Sqlite:Autoincrement", true),
-                    Name = table.Column<string>(type: "TEXT", nullable: false),
-                    Color = table.Column<string>(type: "TEXT", nullable: false),
-                    WorkspaceId = table.Column<int>(type: "INTEGER", nullable: true),
-                    UserId = table.Column<int>(type: "INTEGER", nullable: false)
+                    Id = table.Column<int>(nullable: false)
+                        .Annotation("Sqlite:Autoincrement", true).Annotation("Npgsql:ValueGenerationStrategy", Npgsql.EntityFrameworkCore.PostgreSQL.Metadata.NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    Name = table.Column<string>(nullable: false),
+                    Color = table.Column<string>(nullable: false),
+                    WorkspaceId = table.Column<int>(nullable: true),
+                    UserId = table.Column<int>(nullable: false)
                 },
                 constraints: table =>
                 {
@@ -105,11 +105,11 @@ namespace LifePlanner.Api.Migrations
                 name: "WorkspaceUsers",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "INTEGER", nullable: false)
-                        .Annotation("Sqlite:Autoincrement", true),
-                    WorkspaceId = table.Column<int>(type: "INTEGER", nullable: false),
-                    UserId = table.Column<int>(type: "INTEGER", nullable: false),
-                    Role = table.Column<string>(type: "TEXT", nullable: false)
+                    Id = table.Column<int>(nullable: false)
+                        .Annotation("Sqlite:Autoincrement", true).Annotation("Npgsql:ValueGenerationStrategy", Npgsql.EntityFrameworkCore.PostgreSQL.Metadata.NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    WorkspaceId = table.Column<int>(nullable: false),
+                    UserId = table.Column<int>(nullable: false),
+                    Role = table.Column<string>(nullable: false)
                 },
                 constraints: table =>
                 {
@@ -132,22 +132,22 @@ namespace LifePlanner.Api.Migrations
                 name: "Cards",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "INTEGER", nullable: false)
-                        .Annotation("Sqlite:Autoincrement", true),
-                    Order = table.Column<int>(type: "INTEGER", nullable: false),
-                    Title = table.Column<string>(type: "TEXT", nullable: false),
-                    Description = table.Column<string>(type: "TEXT", nullable: true),
-                    ScheduledDate = table.Column<DateTime>(type: "TEXT", nullable: true),
-                    IsChecklist = table.Column<bool>(type: "INTEGER", nullable: false),
-                    IntegrationSource = table.Column<string>(type: "TEXT", nullable: true),
-                    IntegrationExternalId = table.Column<string>(type: "TEXT", nullable: true),
-                    CategoryId = table.Column<int>(type: "INTEGER", nullable: false),
-                    WorkspaceId = table.Column<int>(type: "INTEGER", nullable: true),
-                    UserId = table.Column<int>(type: "INTEGER", nullable: false),
-                    WhiteboardX = table.Column<double>(type: "REAL", nullable: true),
-                    WhiteboardY = table.Column<double>(type: "REAL", nullable: true),
-                    IsStickyNote = table.Column<bool>(type: "INTEGER", nullable: false),
-                    Color = table.Column<string>(type: "TEXT", nullable: true)
+                    Id = table.Column<int>(nullable: false)
+                        .Annotation("Sqlite:Autoincrement", true).Annotation("Npgsql:ValueGenerationStrategy", Npgsql.EntityFrameworkCore.PostgreSQL.Metadata.NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    Order = table.Column<int>(nullable: false),
+                    Title = table.Column<string>(nullable: false),
+                    Description = table.Column<string>(nullable: true),
+                    ScheduledDate = table.Column<DateTime>(nullable: true),
+                    IsChecklist = table.Column<bool>(nullable: false),
+                    IntegrationSource = table.Column<string>(nullable: true),
+                    IntegrationExternalId = table.Column<string>(nullable: true),
+                    CategoryId = table.Column<int>(nullable: false),
+                    WorkspaceId = table.Column<int>(nullable: true),
+                    UserId = table.Column<int>(nullable: false),
+                    WhiteboardX = table.Column<double>(nullable: true),
+                    WhiteboardY = table.Column<double>(nullable: true),
+                    IsStickyNote = table.Column<bool>(nullable: false),
+                    Color = table.Column<string>(nullable: true)
                 },
                 constraints: table =>
                 {
@@ -176,13 +176,13 @@ namespace LifePlanner.Api.Migrations
                 name: "ListItems",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "INTEGER", nullable: false)
-                        .Annotation("Sqlite:Autoincrement", true),
-                    Text = table.Column<string>(type: "TEXT", nullable: false),
-                    IsCompleted = table.Column<bool>(type: "INTEGER", nullable: false),
-                    CardId = table.Column<int>(type: "INTEGER", nullable: false),
-                    IntegrationExternalId = table.Column<string>(type: "TEXT", nullable: true),
-                    Position = table.Column<string>(type: "TEXT", nullable: true)
+                    Id = table.Column<int>(nullable: false)
+                        .Annotation("Sqlite:Autoincrement", true).Annotation("Npgsql:ValueGenerationStrategy", Npgsql.EntityFrameworkCore.PostgreSQL.Metadata.NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    Text = table.Column<string>(nullable: false),
+                    IsCompleted = table.Column<bool>(nullable: false),
+                    CardId = table.Column<int>(nullable: false),
+                    IntegrationExternalId = table.Column<string>(nullable: true),
+                    Position = table.Column<string>(nullable: true)
                 },
                 constraints: table =>
                 {
@@ -199,21 +199,21 @@ namespace LifePlanner.Api.Migrations
                 name: "ScheduledInstances",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "INTEGER", nullable: false)
-                        .Annotation("Sqlite:Autoincrement", true),
-                    Date = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    IsCompleted = table.Column<bool>(type: "INTEGER", nullable: false),
-                    UserId = table.Column<int>(type: "INTEGER", nullable: false),
-                    WorkspaceId = table.Column<int>(type: "INTEGER", nullable: true),
-                    ListItemId = table.Column<int>(type: "INTEGER", nullable: true),
-                    CategoryId = table.Column<int>(type: "INTEGER", nullable: true),
-                    Title = table.Column<string>(type: "TEXT", nullable: true),
-                    Description = table.Column<string>(type: "TEXT", nullable: true),
-                    Type = table.Column<string>(type: "TEXT", nullable: true),
-                    StartTime = table.Column<DateTime>(type: "TEXT", nullable: true),
-                    EndTime = table.Column<DateTime>(type: "TEXT", nullable: true),
-                    IsConfirmed = table.Column<bool>(type: "INTEGER", nullable: false),
-                    GoogleEventId = table.Column<string>(type: "TEXT", nullable: true)
+                    Id = table.Column<int>(nullable: false)
+                        .Annotation("Sqlite:Autoincrement", true).Annotation("Npgsql:ValueGenerationStrategy", Npgsql.EntityFrameworkCore.PostgreSQL.Metadata.NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    Date = table.Column<DateTime>(nullable: false),
+                    IsCompleted = table.Column<bool>(nullable: false),
+                    UserId = table.Column<int>(nullable: false),
+                    WorkspaceId = table.Column<int>(nullable: true),
+                    ListItemId = table.Column<int>(nullable: true),
+                    CategoryId = table.Column<int>(nullable: true),
+                    Title = table.Column<string>(nullable: true),
+                    Description = table.Column<string>(nullable: true),
+                    Type = table.Column<string>(nullable: true),
+                    StartTime = table.Column<DateTime>(nullable: true),
+                    EndTime = table.Column<DateTime>(nullable: true),
+                    IsConfirmed = table.Column<bool>(nullable: false),
+                    GoogleEventId = table.Column<string>(nullable: true)
                 },
                 constraints: table =>
                 {
