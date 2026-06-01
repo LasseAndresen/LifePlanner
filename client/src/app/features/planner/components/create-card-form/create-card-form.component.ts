@@ -5,6 +5,7 @@ import { CategoryService } from '../../../../core/services/category.service';
 import { UserService } from '../../../../core/services/user.service';
 import { CardService } from '../../../../core/services/card.service';
 import { Card, Category } from '../../../../core/models/planner.models';
+import { WorkspaceService } from '../../../../core/services/workspace.service';
 
 export interface CardFormData {
   title: string;
@@ -371,6 +372,7 @@ export class CreateCardFormComponent {
   protected readonly categoryService = inject(CategoryService);
   private readonly userService = inject(UserService);
   private readonly cardService = inject(CardService);
+  private readonly workspaceService = inject(WorkspaceService);
 
   protected title = '';
   protected description = '';
@@ -410,10 +412,15 @@ export class CreateCardFormComponent {
   protected createCategory(): void {
     const userId = this.userService.currentUser()?.id;
     if (!this.newCatName.trim() || !userId) return;
+
+    const activeWs = this.workspaceService.activeWorkspace();
+    const workspaceId = activeWs ? activeWs.id : undefined;
+
     this.categoryService.createCategory({
       name: this.newCatName.trim(),
       color: this.newCatColor,
-      userId
+      userId,
+      workspaceId
     }).subscribe(created => {
       this.selectedCategoryId = created.id;
       this.showNewCat = false;
