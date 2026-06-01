@@ -466,18 +466,27 @@
   transition: all 0.15s;
 }
 .user-dropdown .logout-btn:hover {
-  background: rgba(239, 68, 68, 0.12);
-  color: #f87171 !important;
+  background: rgba(99, 102, 241, 0.12);
+  color: #a5b4fc !important;
 }
 .user-dropdown .logout-btn:hover .btn-icon {
-  filter: drop-shadow(0 0 4px #ef4444);
+  filter: drop-shadow(0 0 4px #6366f1);
+}
+.user-dropdown .delete-account-btn {
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  background: rgba(239, 68, 68, 0.05);
+  color: #fca5a5;
+  transition: all 0.2s ease;
 }
 .user-dropdown .delete-account-btn:hover {
-  background: rgba(245, 158, 11, 0.12);
-  color: #fbbf24 !important;
+  background: linear-gradient(135deg, #e11d48, #be123c) !important;
+  color: #ffffff !important;
+  border-color: #be123c;
+  box-shadow: 0 4px 12px rgba(225, 29, 72, 0.35);
+  transform: translateY(-1px);
 }
 .user-dropdown .delete-account-btn:hover .btn-icon {
-  filter: drop-shadow(0 0 4px #f59e0b);
+  filter: drop-shadow(0 0 4px #ffffff);
 }
 .planner-layout {
   display: flex;

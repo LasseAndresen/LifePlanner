@@ -96,11 +96,11 @@
               <p>{{ userService.currentUser()?.email }}</p>
             </div>
             <div class="dropdown-body">
-              <button class="dropdown-action-btn logout-btn" (click)="logout()" id="nav-logout-btn">
-                <span class="btn-icon">🚪</span> Logout
-              </button>
               <button class="dropdown-action-btn delete-account-btn" (click)="deleteAccount()" id="nav-delete-account-btn">
                 <span class="btn-icon">⚠️</span> Delete All Data
+              </button>
+              <button class="dropdown-action-btn logout-btn" (click)="logout()" id="nav-logout-btn">
+                <span class="btn-icon">🚪</span> Logout
               </button>
             </div>
           </div>
