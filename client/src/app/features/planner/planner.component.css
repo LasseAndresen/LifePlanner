@@ -402,15 +402,82 @@
 .action-btn {
   color: var(--text-muted);
 }
-.logout-btn:hover {
-  color: #ef4444;
-  background: rgba(239, 68, 68, 0.1);
-  border-color: rgba(239, 68, 68, 0.2);
+/* User Profile Styling */
+.user-profile-container {
+  position: relative;
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
 }
-.delete-account-btn:hover {
-  color: #f59e0b;
-  background: rgba(245, 158, 11, 0.1);
-  border-color: rgba(245, 158, 11, 0.2);
+.user-badge {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent-secondary), var(--accent-primary));
+  border: 1px solid var(--border-glass-strong);
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.95rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  transition: all 0.2s ease;
+}
+.user-badge:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 16px rgba(236, 72, 153, 0.4);
+}
+.user-dropdown {
+  position: absolute;
+  bottom: 0;
+  left: 60px;
+  width: 240px;
+  background: rgba(18, 18, 28, 0.94);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--border-glass-strong);
+  border-radius: var(--radius-md);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+  z-index: 100;
+  padding: 1rem 0;
+  animation: fadeIn 0.18s ease-out;
+}
+.user-dropdown .dropdown-body {
+  padding: 0.5rem 0.75rem 0 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.user-dropdown .dropdown-action-btn {
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 0.82rem;
+  padding: 0.5rem 0.65rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  border-radius: var(--radius-sm);
+  transition: all 0.15s;
+}
+.user-dropdown .logout-btn:hover {
+  background: rgba(239, 68, 68, 0.12);
+  color: #f87171 !important;
+}
+.user-dropdown .logout-btn:hover .btn-icon {
+  filter: drop-shadow(0 0 4px #ef4444);
+}
+.user-dropdown .delete-account-btn:hover {
+  background: rgba(245, 158, 11, 0.12);
+  color: #fbbf24 !important;
+}
+.user-dropdown .delete-account-btn:hover .btn-icon {
+  filter: drop-shadow(0 0 4px #f59e0b);
 }
 .planner-layout {
   display: flex;

@@ -76,9 +76,15 @@ export class PlannerComponent {
   readonly isCreateWorkspaceOpen = signal(false);
   readonly isWorkspaceSettingsOpen = signal(false);
   readonly generatedInviteLink = signal<string>('');
+  readonly isUserDropdownOpen = signal(false);
 
   readonly activeWorkspaceName = computed(() => this.workspaceService.activeWorkspace()?.name ?? 'Select Workspace');
   readonly activeWorkspaceInitials = computed(() => this.getInitials(this.activeWorkspaceName()));
+  readonly userInitials = computed(() => {
+    const user = this.userService.currentUser();
+    if (!user) return 'U';
+    return this.getInitials(user.name || user.email || '');
+  });
 
   readonly isCalendarDialogOpen = signal(false);
   readonly activeInstance = signal<ScheduledInstance | null>(null);
@@ -183,10 +189,23 @@ export class PlannerComponent {
     if (!target.closest('.workspace-selector-container')) {
       this.isWorkspaceDropdownOpen.set(false);
     }
+    if (!target.closest('.user-profile-container')) {
+      this.isUserDropdownOpen.set(false);
+    }
   }
 
   toggleWorkspaceDropdown(): void {
     this.isWorkspaceDropdownOpen.update(v => !v);
+    if (this.isWorkspaceDropdownOpen()) {
+      this.isUserDropdownOpen.set(false);
+    }
+  }
+
+  toggleUserDropdown(): void {
+    this.isUserDropdownOpen.update(v => !v);
+    if (this.isUserDropdownOpen()) {
+      this.isWorkspaceDropdownOpen.set(false);
+    }
   }
 
   selectWorkspace(ws: any): void {

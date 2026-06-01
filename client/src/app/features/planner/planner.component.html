@@ -84,14 +84,28 @@
         <span class="nav-icon">🔌</span>
         <span class="nav-label">Integrations</span>
       </button>
-      <button class="nav-item action-btn delete-account-btn" (click)="deleteAccount()" title="Delete Account & Data" id="nav-delete-account-btn">
-        <span class="nav-icon">⚠️</span>
-        <span class="nav-label">Delete Data</span>
-      </button>
-      <button class="nav-item action-btn logout-btn" (click)="logout()" title="Logout" id="nav-logout-btn">
-        <span class="nav-icon">🚪</span>
-        <span class="nav-label">Logout</span>
-      </button>
+      <div class="user-profile-container">
+        <button class="user-badge" (click)="toggleUserDropdown()" [title]="userService.currentUser()?.name || userService.currentUser()?.email || 'User Profile'" id="nav-user-badge-btn">
+          {{ userInitials() }}
+        </button>
+
+        @if (isUserDropdownOpen()) {
+          <div class="user-dropdown glass-panel" (click)="$event.stopPropagation()">
+            <div class="dropdown-header">
+              <h3>{{ userService.currentUser()?.name || 'User Profile' }}</h3>
+              <p>{{ userService.currentUser()?.email }}</p>
+            </div>
+            <div class="dropdown-body">
+              <button class="dropdown-action-btn logout-btn" (click)="logout()" id="nav-logout-btn">
+                <span class="btn-icon">🚪</span> Logout
+              </button>
+              <button class="dropdown-action-btn delete-account-btn" (click)="deleteAccount()" id="nav-delete-account-btn">
+                <span class="btn-icon">⚠️</span> Delete All Data
+              </button>
+            </div>
+          </div>
+        }
+      </div>
     </div>
   </nav>
 
